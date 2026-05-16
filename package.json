@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-postgres",
+  "version": "0.1.0",
+  "description": "OpenCode plugin that lets agents run Postgres SQL queries.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node -e \"import('./dist/server.js').then((m) => { if (!m.default?.server) throw new Error('missing plugin export') })\"",
+    "pack:dry-run": "npm pack --dry-run",
+    "prepack": "npm run build && npm run smoke",
+    "prepublishOnly": "npm run typecheck && npm run prepack",
+    "release": "changeset publish"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "postgres",
+    "postgresql",
+    "database",
+    "sql",
+    "ai"
+  ],
+  "author": "vimtor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-postgres.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-postgres/issues"
+  },
+  "homepage": "https://github.com/vimtor/opencode-postgres#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.0",
+    "@opencode-ai/plugin": "^1.15.1",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.6",
+    "typescript": "^5.9.3"
+  }
+}
