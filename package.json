@@ -25,6 +25,7 @@
     "pack:dry-run": "npm pack --dry-run",
     "prepack": "npm run build && npm run smoke",
     "prepublishOnly": "npm run typecheck && npm run prepack",
+    "version": "changeset version && npm install --package-lock-only",
     "release": "changeset publish"
   },
   "keywords": [
