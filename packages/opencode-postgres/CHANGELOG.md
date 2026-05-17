@@ -1,5 +1,11 @@
 # opencode-postgres
 
+## 0.1.2
+
+### Patch Changes
+
+- f74042c: Verify monorepo release pipeline.
+
 ## 0.1.1
 
 ### Patch Changes
