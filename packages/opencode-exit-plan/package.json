@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-exit-plan",
+  "version": "0.1.2",
+  "description": "OpenCode plugin that exits plan mode when you approve implementation.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node -e \"import('./dist/server.js').then((m) => { if (!m.default?.server) throw new Error('missing plugin export') })\"",
+    "pack:dry-run": "npm pack --dry-run",
+    "prepack": "npm run build && npm run smoke",
+    "prepublishOnly": "npm run typecheck && npm run prepack"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "plan-mode",
+    "coding-agent",
+    "ai"
+  ],
+  "author": "vimtor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-plugins.git",
+    "directory": "packages/opencode-exit-plan"
+  },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-plugins/issues"
+  },
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-exit-plan#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.15.1",
+    "typescript": "^5.9.3"
+  }
+}

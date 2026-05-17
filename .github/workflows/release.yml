@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   release:
-    if: github.repository == 'vimtor/opencode-postgres'
+    if: github.repository == 'vimtor/opencode-plugins'
     runs-on: ubuntu-latest
     permissions:
       contents: write
