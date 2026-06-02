@@ -25,6 +25,14 @@ Run a package script for one plugin with `-w`:
 npm run typecheck -w opencode-postgres
 ```
 
+Start local databases for the Postgres and MySQL plugins:
+
+```sh
+docker compose up -d --wait
+```
+
+The local Postgres wrapper connects on port `5432`. The local MySQL wrapper connects on port `3307` so it can coexist with other MySQL services using the default port.
+
 ## License
 
 MIT
