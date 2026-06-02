@@ -1,6 +1,6 @@
 # opencode-exit-plan
 
-OpenCode plugin that switches from the `plan` agent to another primary agent when you approve implementation with a phrase like `go ahead`, `let's implement`, `make the changes`, or `ship it`.
+OpenCode plugin that switches from the `plan` agent to another primary agent when you approve implementation with a phrase like `go ahead`, `let's implement`, `make the changes`, or `ship it`. Default approval phrases include English, Spanish, Simplified Chinese, Portuguese, French, German, Japanese, Korean, Russian, and Hindi variants.
 
 ## Install
 

@@ -1,29 +1,8 @@
 import type { PluginModule } from "@opencode-ai/plugin"
+import { DEFAULT_EXIT_PLAN_PHRASES } from "./phrases.js"
 
 const PLAN_AGENT = "plan"
 const DEFAULT_EXIT_PLAN_AGENT = "build"
-const DEFAULT_EXIT_PLAN_PHRASES = [
-  "go ahead",
-  "go for it",
-  "let's do it",
-  "lets do it",
-  "let's implement",
-  "lets implement",
-  "start implementing",
-  "please implement",
-  "implement this",
-  "implement it",
-  "implement the plan",
-  "go implement",
-  "execute the plan",
-  "proceed with implementation",
-  "make the changes",
-  "apply the changes",
-  "build it",
-  "ship it",
-  "lgtm",
-  "approved",
-] as const
 
 export default {
   id: "exit-plan",

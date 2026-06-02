@@ -1,0 +1,168 @@
+const ENGLISH_EXIT_PLAN_PHRASES = [
+  "go ahead",
+  "go for it",
+  "let's do it",
+  "lets do it",
+  "let's implement",
+  "lets implement",
+  "start implementing",
+  "please implement",
+  "implement this",
+  "implement it",
+  "implement the plan",
+  "go implement",
+  "execute the plan",
+  "proceed with implementation",
+  "make the changes",
+  "apply the changes",
+  "build it",
+  "ship it",
+  "lgtm",
+  "approved",
+] as const
+
+const SPANISH_EXIT_PLAN_PHRASES = [
+  "adelante",
+  "hazlo",
+  "vamos a hacerlo",
+  "vamos a implementar",
+  "empieza a implementar",
+  "por favor implementa",
+  "implementa esto",
+  "impleméntalo",
+  "implementalo",
+  "implementa el plan",
+  "ejecuta el plan",
+  "procede con la implementación",
+  "procede con la implementacion",
+  "haz los cambios",
+  "aplica los cambios",
+  "constrúyelo",
+  "construyelo",
+  "envíalo",
+  "envialo",
+  "aprobado",
+] as const
+
+const CHINESE_EXIT_PLAN_PHRASES = [
+  "开始吧",
+  "开始实施",
+  "开始实现",
+  "请实现",
+  "实现这个",
+  "实现它",
+  "实现这个计划",
+  "执行计划",
+  "继续实现",
+  "进行修改",
+  "应用更改",
+  "构建它",
+  "发布吧",
+  "批准",
+] as const
+
+const PORTUGUESE_EXIT_PLAN_PHRASES = [
+  "vamos implementar",
+  "comece a implementar",
+  "pode implementar",
+  "implemente isso",
+  "implementa isso",
+  "implemente o plano",
+  "execute o plano",
+  "faça as alterações",
+  "faca as alteracoes",
+  "aplique as alterações",
+  "aplique as alteracoes",
+  "manda ver",
+] as const
+
+const FRENCH_EXIT_PLAN_PHRASES = [
+  "vas-y",
+  "allons-y",
+  "commence l'implémentation",
+  "commence l'implementation",
+  "implémente ça",
+  "implemente ca",
+  "implémente le plan",
+  "implemente le plan",
+  "exécute le plan",
+  "execute le plan",
+  "applique les changements",
+  "effectue les modifications",
+] as const
+
+const GERMAN_EXIT_PLAN_PHRASES = [
+  "mach weiter",
+  "leg los",
+  "fang mit der implementierung an",
+  "implementiere das",
+  "implementiere den plan",
+  "führe den plan aus",
+  "fuehre den plan aus",
+  "nimm die änderungen vor",
+  "nimm die aenderungen vor",
+  "wende die änderungen an",
+  "wende die aenderungen an",
+  "setz es um",
+] as const
+
+const JAPANESE_EXIT_PLAN_PHRASES = [
+  "実装してください",
+  "実装して",
+  "実装を始めて",
+  "計画を実装して",
+  "計画を実行して",
+  "変更を加えて",
+  "変更を適用して",
+  "進めてください",
+] as const
+
+const KOREAN_EXIT_PLAN_PHRASES = [
+  "구현해 주세요",
+  "구현해주세요",
+  "구현을 시작해 주세요",
+  "구현을 시작해주세요",
+  "계획을 구현해 주세요",
+  "계획을 구현해주세요",
+  "계획을 실행해 주세요",
+  "계획을 실행해주세요",
+  "변경 사항을 적용해 주세요",
+  "변경사항을 적용해 주세요",
+  "진행해 주세요",
+] as const
+
+const RUSSIAN_EXIT_PLAN_PHRASES = [
+  "приступай к реализации",
+  "начинай реализацию",
+  "можно реализовывать",
+  "реализуй это",
+  "реализуй план",
+  "выполни план",
+  "внеси изменения",
+  "примени изменения",
+] as const
+
+const HINDI_EXIT_PLAN_PHRASES = [
+  "इसे लागू करो",
+  "इसे इम्प्लीमेंट करो",
+  "लागू करना शुरू करो",
+  "योजना लागू करो",
+  "योजना को लागू करो",
+  "योजना पर अमल करो",
+  "बदलाव करो",
+  "बदलाव लागू करो",
+  "आगे बढ़ो",
+] as const
+
+export const DEFAULT_EXIT_PLAN_PHRASES = [
+  ...ENGLISH_EXIT_PLAN_PHRASES,
+  ...SPANISH_EXIT_PLAN_PHRASES,
+  ...CHINESE_EXIT_PLAN_PHRASES,
+  ...PORTUGUESE_EXIT_PLAN_PHRASES,
+  ...FRENCH_EXIT_PLAN_PHRASES,
+  ...GERMAN_EXIT_PLAN_PHRASES,
+  ...JAPANESE_EXIT_PLAN_PHRASES,
+  ...KOREAN_EXIT_PLAN_PHRASES,
+  ...RUSSIAN_EXIT_PLAN_PHRASES,
+  ...HINDI_EXIT_PLAN_PHRASES,
+] as const
