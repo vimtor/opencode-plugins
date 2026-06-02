@@ -37,7 +37,44 @@ Options:
 - `connectionString`: Postgres connection string. Required.
 - `readOnly`: Run queries in a read-only transaction. Defaults to `true`.
 
-The tool is available as `postgres_query` and is described to agents as Postgres Query. It accepts one argument:
+## Permissions
+
+The tool uses OpenCode's native permission system with the `postgres_query` permission key. If `permission.postgres_query` is not configured, OpenCode's native fallback applies, which currently allows most permissions.
+
+To ask before Postgres queries:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "postgres_query": "ask"
+  }
+}
+```
+
+You can also explicitly allow or deny the tool:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "postgres_query": "allow"
+  }
+}
+```
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "postgres_query": "deny"
+  }
+}
+```
+
+Choosing **always** in a prompt allows additional Postgres queries for the current OpenCode session.
+
+The tool is available as `postgres_query` and its description identifies whether it is configured as `(read-only)` or `(read/write)`. It accepts one argument:
 
 ```json
 {

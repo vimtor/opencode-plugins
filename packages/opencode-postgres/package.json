@@ -55,10 +55,10 @@
     "pg": "^8.16.3"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.0.0"
+    "@opencode-ai/plugin": ">=1.15.12"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.15.1",
+    "@opencode-ai/plugin": "^1.15.12",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.6",
     "typescript": "^5.9.3"

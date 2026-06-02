@@ -5,6 +5,7 @@ import type { QueryResult, QueryResultRow } from "pg"
 type QueryResponse = QueryResult<QueryResultRow> | Array<QueryResult<QueryResultRow>>
 
 const DEFAULT_READ_ONLY = true
+const TOOL_ID = "postgres_query"
 const TOOL_TITLE = "Postgres Query"
 
 const { Client } = pg
@@ -69,16 +70,27 @@ export default {
   id: "postgres",
   server: async (_ctx, options = {}) => {
     const readOnly = getReadOnly(options)
+    const mode = readOnly ? "read-only" : "read/write"
 
     return {
       tool: {
-        postgres_query: tool({
-          description: "Postgres Query: run one SQL statement against the configured Postgres database.",
+        [TOOL_ID]: tool({
+          description: `Postgres Query (${mode}): run one SQL statement against the configured Postgres database.`,
           args: {
             query: tool.schema.string().trim().min(1).describe("SQL statement to run in Postgres"),
           },
           async execute(args, context) {
             context.metadata({ title: TOOL_TITLE, metadata: { readOnly } })
+            await context.ask({
+              permission: TOOL_ID,
+              patterns: [args.query],
+              always: ["*"],
+              metadata: {
+                title: TOOL_TITLE,
+                query: args.query,
+                readOnly,
+              },
+            })
 
             const connectionString = getConnectionString(options)
             const response = await runQuery(connectionString, args.query, readOnly)
