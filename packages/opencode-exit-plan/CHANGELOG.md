@@ -1,5 +1,11 @@
 # opencode-exit-plan
 
+## 0.1.4
+
+### Patch Changes
+
+- 4c95bba: Add multilingual plan approval phrases.
+
 ## 0.1.3
 
 ### Patch Changes
