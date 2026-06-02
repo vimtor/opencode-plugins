@@ -37,6 +37,8 @@ Options:
 - `connectionString`: MySQL connection string. Required.
 - `readOnly`: Run queries in a read-only transaction. Defaults to `true`.
 
+Each tool call runs one SQL statement. Multi-statement execution remains disabled even if the connection string requests it.
+
 ## Permissions
 
 The tool uses OpenCode's native permission system with the `mysql_query` permission key. If `permission.mysql_query` is not configured, OpenCode's native fallback applies, which currently allows most permissions.
