@@ -8,6 +8,7 @@ My personal OpenCode plugins.
 - [`opencode-mysql`](packages/opencode-mysql/README.md): adds a MySQL Query tool for running SQL against a configured MySQL 8+ database.
 - [`opencode-exit-plan`](packages/opencode-exit-plan/README.md): switches from the plan mode to a build agent when you say phrases like "go ahead".
 - [`opencode-keep-going`](packages/opencode-keep-going/README.md): sends a continue prompt when you press Enter on an empty input.
+- [`opencode-quick-links`](packages/opencode-quick-links/README.md): searches and opens links from the active conversation.
 
 ## Development
 

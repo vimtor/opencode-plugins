@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-quick-links",
+  "version": "0.1.0",
+  "description": "OpenCode TUI plugin for searching and opening links from the active conversation.",
+  "type": "module",
+  "exports": {
+    "./tui": {
+      "types": "./dist/tui.d.ts",
+      "import": "./dist/tui.js",
+      "default": "./dist/tui.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node -e \"import('./dist/tui.js').then((m) => { if (!m.default?.tui) throw new Error('missing tui plugin export') })\"",
+    "pack:dry-run": "npm pack --dry-run",
+    "prepack": "npm run build && npm run smoke",
+    "prepublishOnly": "npm run typecheck && npm run prepack"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "opencode-tui",
+    "plugin",
+    "links",
+    "browser",
+    "ai"
+  ],
+  "author": "vimtor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-plugins.git",
+    "directory": "packages/opencode-quick-links"
+  },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-plugins/issues"
+  },
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-quick-links#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "opencode": ">=1.15.0"
+  },
+  "dependencies": {
+    "open": "^10.1.2"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.15.0"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.15.1",
+    "typescript": "^5.9.3"
+  }
+}
