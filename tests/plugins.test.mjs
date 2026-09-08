@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
+import { dirname } from "node:path"
 import { test } from "node:test"
+import { fileURLToPath } from "node:url"
+import { Host } from "@opencode/plugin/host"
 import exitPlan from "opencode-exit-plan"
 import keepGoing from "opencode-keep-going/tui"
 import quickLinks from "opencode-quick-links/tui"
@@ -7,6 +10,15 @@ import postgres from "opencode-postgres"
 import mysql from "opencode-mysql"
 import pg from "pg"
 import mysqlDriver from "mysql2/promise"
+
+test("CLI plugins load through local directories as well as npm exports", async () => {
+  for (const [name, plugin] of [["opencode-quick-links", quickLinks], ["opencode-keep-going", keepGoing]]) {
+    const directory = dirname(dirname(fileURLToPath(import.meta.resolve(`${name}/tui`))))
+    const { tui } = Host.resolve({ directory })
+    assert.ok(tui, `${name} must expose a local TUI entrypoint`)
+    assert.equal((await Host.load(tui)).default, plugin)
+  }
+})
 
 async function planHarness({ options = {}, agent = "plan", target = {} } = {}) {
   const switches = []
@@ -138,9 +150,15 @@ test("Keep Going suppresses repeated Enter while admission is pending", async ()
 test("Quick Links reads V2 user/assistant text, deduplicates URLs, and ignores tool/reasoning content", async () => {
   let command
   let dialog
+  let render
+  let mounted = false
+  let disposed = false
   const messages = []
-  quickLinks.setup({
-    keymap: { layer: (get) => { command = get().commands[0] } },
+  const cleanup = quickLinks.setup({
+    keymap: { layer: (get) => {
+      assert.equal(mounted, true, "keymap registration requires a mounted UI context")
+      command = get().commands[0]
+    } },
     data: { session: { message: {
       sync: async (sessionID) => {
         assert.equal(sessionID, "session")
@@ -158,15 +176,25 @@ test("Quick Links reads V2 user/assistant text, deduplicates URLs, and ignores t
       list: () => messages,
     } } },
     ui: {
+      slot: (claim) => {
+        assert.equal(claim.append, "app")
+        render = claim.render
+        return () => { disposed = true }
+      },
       router: { current: () => ({ type: "session", sessionID: "session" }) },
       toast: { show: (input) => assert.fail(input.message) },
       dialog: { select: async (input) => { dialog = input } },
     },
   })
+  assert.equal(command, undefined)
+  mounted = true
+  render({})
   assert.equal(command.id, "quick-links.open")
   assert.equal(command.slash.name, "links")
   await command.run()
   assert.deepEqual(dialog.options.map((option) => option.value), ["https://example.com/guide", "https://example.com/page_(one)"])
+  cleanup()
+  assert.equal(disposed, true)
 })
 
 async function queryTool(plugin, options) {

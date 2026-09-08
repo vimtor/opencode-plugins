@@ -70,22 +70,28 @@ export default Plugin.define({
                 ctx.ui.toast.show({ variant: "warning", title: "Could not open browser", message: url });
             });
         }
-        ctx.keymap.layer(() => ({
-            mode: "global",
-            commands: [
-                {
-                    id: "quick-links.open",
-                    title: "Open session links",
-                    group: "Plugin",
-                    palette: true,
-                    slash: { name: "links" },
-                    run: () => showQuickLinks().catch(() => {
-                        ctx.ui.toast.show({ variant: "error", message: "Could not load session links." });
-                    }),
-                },
-            ],
-            bindings: ["quick-links.open"],
-        }));
+        return ctx.ui.slot({
+            append: "app",
+            render() {
+                ctx.keymap.layer(() => ({
+                    mode: "global",
+                    commands: [
+                        {
+                            id: "quick-links.open",
+                            title: "Open session links",
+                            group: "Plugin",
+                            palette: true,
+                            slash: { name: "links" },
+                            run: () => showQuickLinks().catch(() => {
+                                ctx.ui.toast.show({ variant: "error", message: "Could not load session links." });
+                            }),
+                        },
+                    ],
+                    bindings: ["quick-links.open"],
+                }));
+                return null;
+            },
+        });
     },
 });
 //# sourceMappingURL=tui.js.map
