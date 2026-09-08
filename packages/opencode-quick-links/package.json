@@ -13,13 +13,14 @@
   },
   "files": [
     "dist",
+    "tui.js",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "smoke": "node -e \"import('./dist/tui.js').then((m) => { if (!m.default?.tui) throw new Error('missing tui plugin export') })\"",
+    "smoke": "node -e \"import('./dist/tui.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 CLI plugin export') })\"",
     "pack:dry-run": "npm pack --dry-run",
     "prepack": "npm run build && npm run smoke",
     "prepublishOnly": "npm run typecheck && npm run prepack"
@@ -48,17 +49,14 @@
     "access": "public",
     "provenance": true
   },
-  "engines": {
-    "opencode": ">=1.15.0"
-  },
   "dependencies": {
+    "@opencode/plugin": "0.0.0-beta-19296",
     "open": "^10.1.2"
   },
   "peerDependencies": {
-    "@opencode-ai/plugin": ">=1.15.0"
+    "solid-js": ">=1.9.0"
   },
   "devDependencies": {
-    "@opencode-ai/plugin": "^1.15.1",
     "typescript": "^5.9.3"
   }
 }

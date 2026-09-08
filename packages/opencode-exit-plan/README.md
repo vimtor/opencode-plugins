@@ -2,6 +2,8 @@
 
 OpenCode plugin that switches from the `plan` agent to another primary agent when you approve implementation with a phrase like `go ahead`, `let's implement`, `make the changes`, or `ship it`. Default approval phrases include English, Spanish, Simplified Chinese, Portuguese, French, German, Japanese, Korean, Russian, and Hindi variants.
 
+Requires OpenCode V2 (beta).
+
 ## Install
 
 Add the package to your OpenCode config:
@@ -9,7 +11,7 @@ Add the package to your OpenCode config:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-exit-plan"]
+  "plugins": ["opencode-exit-plan"]
 }
 ```
 
@@ -22,17 +24,19 @@ The default target agent is `build`.
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    [
-      "opencode-exit-plan",
-      {
+  "plugins": [
+    {
+      "package": "opencode-exit-plan",
+      "options": {
         "agent": "build",
         "phrases": ["go ahead", "ship it", "approved"]
       }
-    ]
+    }
   ]
 }
 ```
+
+`agent` is the target agent ID. The target must exist at the session's location and be visible and primary (or `all`). `phrases` replaces the default phrase list. Synthetic messages do not trigger a switch.
 
 ## Local Development
 

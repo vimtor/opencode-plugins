@@ -1,4 +1,4 @@
-import type { TuiPluginModule } from "@opencode-ai/plugin/tui"
+import { Plugin } from "@opencode/plugin/tui"
 
 const DEFAULT_HIDDEN = true
 const DEFAULT_MESSAGE = "Continue."
@@ -6,22 +6,6 @@ const DEFAULT_MESSAGE = "Continue."
 type KeepGoingOptions = {
   hidden?: boolean
   message?: string
-}
-
-type CommandContext = {
-  focused?: unknown
-}
-
-function focusedText(input: unknown) {
-  if (!input || typeof input !== "object") return
-  const value = (input as { plainText?: unknown }).plainText
-  return typeof value === "string" ? value : undefined
-}
-
-function currentSessionID(route: { name: string; params?: Record<string, unknown> }) {
-  if (route.name !== "session") return
-  const sessionID = route.params?.sessionID
-  return typeof sessionID === "string" ? sessionID : undefined
 }
 
 function getHidden(options: KeepGoingOptions) {
@@ -38,56 +22,53 @@ function getMessage(options: KeepGoingOptions) {
   return options.message
 }
 
-export default {
+export default Plugin.define({
   id: "keep-going",
-  tui: async (api, options = {}) => {
-    const keepGoingOptions = options as KeepGoingOptions
+  setup(ctx) {
+    const keepGoingOptions = ctx.options as KeepGoingOptions
     const hidden = getHidden(keepGoingOptions)
     const message = getMessage(keepGoingOptions)
+    let sending = false
 
-    const dispose = api.keymap.registerLayer({
-      priority: 1000,
-      commands: [
-        {
-          name: "keep-going.send",
-          title: "Keep Going",
-          run: (context: CommandContext) => {
-            const input = focusedText(context.focused)
-            if (input === undefined || input.trim() !== "") return false
+    async function send(sessionID: string) {
+      sending = true
+      try {
+        const input = { sessionID, text: message, metadata: { source: "opencode-keep-going" }, resume: true }
+        if (hidden) await ctx.client.session.synthetic(input)
+        else await ctx.client.session.prompt(input)
+      } catch {
+        ctx.ui.toast.show({ variant: "error", message: "Could not continue the session." })
+      } finally {
+        sending = false
+      }
+    }
 
-            const sessionID = currentSessionID(api.route.current)
-            if (!sessionID) return false
+    return ctx.ui.slot({
+      append: "prompt.footer",
+      render(prompt) {
+        ctx.keymap.layer(() => ({
+          priority: 1000,
+          enabled: () => prompt.mode === "normal" && !!prompt.sessionID,
+          commands: [
+            {
+              id: "keep-going.send",
+              title: "Keep Going",
+              bind: "return",
+              run: () => {
+                const input = ctx.renderer.currentFocusedEditor?.plainText
+                if (input === undefined || input.trim() !== "") return false
 
-            const session = api.state.session.get(sessionID)
-            const model = session?.model
+                const route = ctx.ui.router.current()
+                if (route.type !== "session" || route.sessionID !== prompt.sessionID) return false
+                if (sending) return
 
-            void api.client.session.prompt({
-              sessionID,
-              agent: session?.agent,
-              model: model ? { providerID: model.providerID, modelID: model.id } : undefined,
-              variant: model?.variant,
-              parts: [
-                {
-                  type: "text",
-                  text: message,
-                  synthetic: hidden,
-                  metadata: { source: "opencode-keep-going" },
-                },
-              ],
-            })
-          },
-        },
-      ],
-      bindings: [
-        {
-          key: "return",
-          cmd: "keep-going.send",
-          preventDefault: false,
-          fallthrough: true,
-        },
-      ],
+                return send(route.sessionID)
+              },
+            },
+          ],
+        }))
+        return null
+      },
     })
-
-    api.lifecycle.onDispose(dispose)
   },
-} satisfies TuiPluginModule
+})

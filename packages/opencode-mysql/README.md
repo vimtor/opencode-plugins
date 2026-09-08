@@ -2,6 +2,8 @@
 
 OpenCode plugin that adds a MySQL Query tool for running SQL against a configured MySQL 8+ database.
 
+Requires OpenCode V2 (beta).
+
 ## Install
 
 Add the plugin to your OpenCode config:
@@ -9,25 +11,25 @@ Add the plugin to your OpenCode config:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-mysql"]
+  "plugins": ["opencode-mysql"]
 }
 ```
 
 ## Configure
 
-Use tuple config to provide the MySQL connection string and read-only mode:
+Use an object entry to provide the MySQL connection string and read-only mode:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    [
-      "opencode-mysql",
-      {
+  "plugins": [
+    {
+      "package": "opencode-mysql",
+      "options": {
         "connectionString": "mysql://user:password@localhost:3306/database",
         "readOnly": true
       }
-    ]
+    }
   ]
 }
 ```
@@ -41,16 +43,16 @@ Each tool call runs one SQL statement. Multi-statement execution remains disable
 
 ## Permissions
 
-The tool uses OpenCode's native permission system with the `mysql_query` permission key. If `permission.mysql_query` is not configured, OpenCode's native fallback applies, which currently allows most permissions.
+Queries use the `mysql_query` permission action with resource `*`. OpenCode checks permissions before executing SQL.
 
 To ask before MySQL queries:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "mysql_query": "ask"
-  }
+  "permissions": [
+    { "action": "mysql_query", "resource": "*", "effect": "ask" }
+  ]
 }
 ```
 
@@ -59,22 +61,22 @@ You can also explicitly allow or deny the tool:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "mysql_query": "allow"
-  }
+  "permissions": [
+    { "action": "mysql_query", "resource": "*", "effect": "allow" }
+  ]
 }
 ```
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "mysql_query": "deny"
-  }
+  "permissions": [
+    { "action": "mysql_query", "resource": "*", "effect": "deny" }
+  ]
 }
 ```
 
-Choosing **always** in a prompt allows additional MySQL queries for the current OpenCode session.
+Choosing **always** saves an approval for the current project across sessions. Configured deny rules still apply.
 
 The tool is available as `mysql_query` and its description identifies whether it is configured as `(read-only)` or `(read/write)`. It accepts one argument:
 

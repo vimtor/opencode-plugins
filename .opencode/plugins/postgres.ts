@@ -7,5 +7,5 @@ const localOptions = {
 
 export default {
   ...postgres,
-  server: ((input, options = {}) => postgres.server(input, { ...localOptions, ...options })) satisfies typeof postgres.server,
-}
+  setup: (ctx) => postgres.setup({ ...ctx, options: { ...localOptions, ...ctx.options } }),
+} satisfies typeof postgres

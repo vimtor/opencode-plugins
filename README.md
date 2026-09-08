@@ -1,6 +1,6 @@
 # OpenCode Plugins
 
-My personal OpenCode plugins.
+My personal plugins for OpenCode V2 (beta).
 
 ## Packages
 
@@ -16,6 +16,7 @@ My personal OpenCode plugins.
 npm install
 npm run typecheck
 npm run build
+npm test
 npm run smoke
 npm run pack:dry-run
 ```

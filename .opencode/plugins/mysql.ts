@@ -7,5 +7,5 @@ const localOptions = {
 
 export default {
   ...mysql,
-  server: ((input, options = {}) => mysql.server(input, { ...localOptions, ...options })) satisfies typeof mysql.server,
-}
+  setup: (ctx) => mysql.setup({ ...ctx, options: { ...localOptions, ...ctx.options } }),
+} satisfies typeof mysql

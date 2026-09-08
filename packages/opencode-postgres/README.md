@@ -2,6 +2,8 @@
 
 OpenCode plugin that adds a Postgres Query tool for running SQL against a configured Postgres database.
 
+Requires OpenCode V2 (beta).
+
 ## Install
 
 Add the plugin to your OpenCode config:
@@ -9,25 +11,25 @@ Add the plugin to your OpenCode config:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-postgres"]
+  "plugins": ["opencode-postgres"]
 }
 ```
 
 ## Configure
 
-Use tuple config to provide the Postgres connection string and read-only mode:
+Use an object entry to provide the Postgres connection string and read-only mode:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": [
-    [
-      "opencode-postgres",
-      {
+  "plugins": [
+    {
+      "package": "opencode-postgres",
+      "options": {
         "connectionString": "postgres://user:password@localhost:5432/database",
         "readOnly": true
       }
-    ]
+    }
   ]
 }
 ```
@@ -39,16 +41,16 @@ Options:
 
 ## Permissions
 
-The tool uses OpenCode's native permission system with the `postgres_query` permission key. If `permission.postgres_query` is not configured, OpenCode's native fallback applies, which currently allows most permissions.
+Queries use the `postgres_query` permission action with resource `*`. OpenCode checks permissions before executing SQL.
 
 To ask before Postgres queries:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "postgres_query": "ask"
-  }
+  "permissions": [
+    { "action": "postgres_query", "resource": "*", "effect": "ask" }
+  ]
 }
 ```
 
@@ -57,22 +59,22 @@ You can also explicitly allow or deny the tool:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "postgres_query": "allow"
-  }
+  "permissions": [
+    { "action": "postgres_query", "resource": "*", "effect": "allow" }
+  ]
 }
 ```
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "permission": {
-    "postgres_query": "deny"
-  }
+  "permissions": [
+    { "action": "postgres_query", "resource": "*", "effect": "deny" }
+  ]
 }
 ```
 
-Choosing **always** in a prompt allows additional Postgres queries for the current OpenCode session.
+Choosing **always** saves an approval for the current project across sessions. Configured deny rules still apply.
 
 The tool is available as `postgres_query` and its description identifies whether it is configured as `(read-only)` or `(read/write)`. It accepts one argument:
 

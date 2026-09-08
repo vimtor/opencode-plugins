@@ -1,4 +1,4 @@
-import { type PluginModule, tool } from "@opencode-ai/plugin"
+import { Plugin } from "@opencode/plugin"
 import mysql, { type FieldPacket, type QueryResult, type ResultSetHeader } from "mysql2/promise"
 
 const DEFAULT_READ_ONLY = true
@@ -70,44 +70,41 @@ function serializeResponse([result, fields]: [QueryResult, FieldPacket[]]) {
   }
 }
 
-export default {
+export default Plugin.define({
   id: "mysql",
-  server: async (_ctx, options = {}) => {
+  async setup(ctx) {
+    const options = ctx.options
     const readOnly = getReadOnly(options)
     const mode = readOnly ? "read-only" : "read/write"
 
-    return {
-      tool: {
-        [TOOL_ID]: tool({
-          description: `MySQL Query (${mode}): run one SQL statement against the configured MySQL database.`,
-          args: {
-            query: tool.schema.string().trim().min(1).describe("SQL statement to run in MySQL"),
+    await ctx.tool.transform((editor) => {
+      editor.add({
+        name: TOOL_ID,
+        description: `MySQL Query (${mode}): run one SQL statement against the configured MySQL database.`,
+        input: {
+          type: "object",
+          properties: {
+            query: { type: "string", pattern: "\\S", description: "SQL statement to run in MySQL" },
           },
-          async execute(args, context) {
-            context.metadata({ title: TOOL_TITLE, metadata: { readOnly } })
-            await context.ask({
-              permission: TOOL_ID,
-              patterns: [args.query],
-              always: ["*"],
-              metadata: {
-                title: TOOL_TITLE,
-                query: args.query,
-                readOnly,
-              },
-            })
+          required: ["query"],
+          additionalProperties: false,
+        },
+        options: { permission: TOOL_ID },
+        async execute(input, context) {
+          const query = (input as { query: string }).query.trim()
+          if (!query) throw new Error("MySQL query must not be empty")
+          await context.progress({ title: TOOL_TITLE, readOnly })
 
-            const connectionString = getConnectionString(options)
-            const response = await runQuery(connectionString, args.query, readOnly)
-            const output = serializeResponse(response)
+          const connectionString = getConnectionString(options)
+          const response = await runQuery(connectionString, query, readOnly)
+          const output = serializeResponse(response)
 
-            return {
-              title: TOOL_TITLE,
-              output: JSON.stringify(output, null, 2),
-              metadata: { readOnly },
-            }
-          },
-        }),
-      },
-    }
+          return {
+            content: JSON.stringify(output, null, 2),
+            metadata: { title: TOOL_TITLE, readOnly },
+          }
+        },
+      })
+    })
   },
-} satisfies PluginModule
+})

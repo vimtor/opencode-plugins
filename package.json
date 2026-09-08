@@ -10,7 +10,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
+    "test": "node scripts/test-packages.mjs",
     "smoke": "npm run smoke --workspaces --if-present",
     "pack:dry-run": "npm run pack:dry-run --workspaces --if-present",
     "prepublishOnly": "npm run prepublishOnly --workspaces --if-present",
@@ -35,7 +36,8 @@
   "homepage": "https://github.com/vimtor/opencode-plugins#readme",
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
-    "@opencode-ai/plugin": "^1.15.1",
+    "@opencode/plugin": "0.0.0-beta-19296",
+    "@opentui/core": "0.5.10",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.6",
     "typescript": "^5.9.3"
