@@ -95,10 +95,11 @@ This package includes `.opencode/plugins/mysql.ts`, so OpenCode can load the loc
 From the monorepo root:
 
 ```sh
-npm install
-npm run typecheck -w opencode-mysql
-npm run build -w opencode-mysql
-npm run smoke -w opencode-mysql
+bun install
+bun run --filter opencode-mysql build
+bun run --filter opencode-mysql typecheck
+bun run --filter opencode-mysql test
+bun run --filter opencode-mysql smoke
 ```
 
 Restart OpenCode after plugin or config changes.
