@@ -1,0 +1,5 @@
+{
+  "name": "opencode-keep-going-local",
+  "type": "module",
+  "exports": { "./tui": "./tui.ts" }
+}

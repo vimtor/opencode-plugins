@@ -2,14 +2,16 @@
 
 OpenCode TUI plugin for searching and opening links from the active conversation.
 
+Requires OpenCode V2 (beta).
+
 ## Install
 
-Add the package to your OpenCode TUI config:
+Add the package to your global `~/.config/opencode/cli.json`:
 
 ```json
 {
-  "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-quick-links"]
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["opencode-quick-links"]
 }
 ```
 
@@ -23,21 +25,21 @@ The plugin scans the active conversation when you open the dialog. It includes H
 
 ## Configure
 
-The plugin does not register a default shortcut. Add one through your OpenCode TUI config if wanted:
+The plugin does not register a default shortcut. Add one through `cli.json` if wanted:
 
 ```json
 {
-  "$schema": "https://opencode.ai/tui.json",
-  "plugin": ["opencode-quick-links"],
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["opencode-quick-links"],
   "keybinds": {
-    "quick-links.open": "<leader>l"
+    "quick-links.open": "<leader>o"
   }
 }
 ```
 
 ## Local Development
 
-This package includes `.opencode/tui.json`, so OpenCode loads the local source when you run it from the package directory.
+OpenCode auto-loads the local source from `.opencode/plugins/quick-links/` when run from the package directory.
 
 From the monorepo root:
 

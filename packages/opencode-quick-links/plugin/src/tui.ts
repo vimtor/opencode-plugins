@@ -1,4 +1,4 @@
-import type { TuiPluginModule } from "@opencode-ai/plugin/tui"
+import { Plugin } from "@opencode/plugin/tui"
 import open from "open"
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi
@@ -6,12 +6,6 @@ const TRAILING_PUNCTUATION = /[\],.;:!?}]+$/
 
 type QuickLink = {
   url: string
-}
-
-function currentSessionID(route: { name: string; params?: Record<string, unknown> }) {
-  if (route.name !== "session") return
-  const sessionID = route.params?.sessionID
-  return typeof sessionID === "string" ? sessionID : undefined
 }
 
 function trimTrailingParentheses(url: string) {
@@ -27,19 +21,19 @@ function trimTrailingParentheses(url: string) {
   return result
 }
 
-function extractLinks(
-  messages: Array<{
-    parts: Array<{ type: string; text?: string }>
-  }>,
-) {
+function extractLinks(messages: ReturnType<Plugin.Context["data"]["session"]["message"]["list"]>) {
   const seen = new Set<string>()
   const links: QuickLink[] = []
 
   for (const message of messages) {
-    for (const part of message.parts) {
-      if (part.type !== "text" || typeof part.text !== "string") continue
+    const texts = message.type === "user"
+      ? [message.text]
+      : message.type === "assistant"
+        ? message.content.flatMap((part) => part.type === "text" ? [part.text] : [])
+        : []
 
-      for (const match of part.text.matchAll(URL_PATTERN)) {
+    for (const text of texts) {
+      for (const match of text.matchAll(URL_PATTERN)) {
         const candidate = trimTrailingParentheses(match[0].replace(TRAILING_PUNCTUATION, ""))
         let url: string
 
@@ -61,64 +55,49 @@ function extractLinks(
   return links
 }
 
-export default {
+export default Plugin.define({
   id: "opencode-quick-links",
-  tui: async (api) => {
+  setup(ctx) {
     async function showQuickLinks() {
-      const sessionID = currentSessionID(api.route.current)
-      if (!sessionID) {
-        api.ui.toast({ variant: "warning", message: "Start a session." })
+      const route = ctx.ui.router.current()
+      if (route.type !== "session") {
+        ctx.ui.toast.show({ variant: "warning", message: "Start a session." })
         return
       }
 
-      const result = await api.client.session.messages({ sessionID })
-      if (result.error) {
-        api.ui.toast({ variant: "error", message: "Could not load session links." })
-        return
-      }
-
-      const links = extractLinks(result.data)
+      await ctx.data.session.message.sync(route.sessionID)
+      const links = extractLinks(ctx.data.session.message.list(route.sessionID))
       if (links.length === 0) {
-        api.ui.toast({ variant: "info", message: "No links found in this session." })
+        ctx.ui.toast.show({ variant: "info", message: "No links found in this session." })
         return
       }
 
-      api.ui.dialog.replace(() =>
-        api.ui.DialogSelect({
-          title: "Quick Links",
-          placeholder: "Search links",
-          options: links.map((link) => ({
-            title: link.url,
-            value: link.url,
-          })),
-          onSelect: (option) => {
-            api.ui.dialog.clear()
-            void open(option.value).catch(() => {
-              api.ui.toast({ variant: "warning", title: "Could not open browser", message: option.value })
-            })
-          },
-        }),
-      )
-    }
-
-    function runQuickLinks() {
-      void showQuickLinks().catch(() => {
-        api.ui.toast({ variant: "error", message: "Could not load session links." })
+      const url = await ctx.ui.dialog.select({
+        title: "Quick Links",
+        placeholder: "Search links",
+        options: links.map((link) => ({ title: link.url, value: link.url })),
+      })
+      if (!url) return
+      await open(url).catch(() => {
+        ctx.ui.toast.show({ variant: "warning", title: "Could not open browser", message: url })
       })
     }
 
-    if (!api.command) throw new Error("opencode-quick-links requires the TUI command API")
-
-    const dispose = api.command.register(() => [
-      {
-        title: "Open session links",
-        value: "quick-links.open",
-        category: "Plugin",
-        slash: { name: "links" },
-        onSelect: runQuickLinks,
-      },
-    ])
-
-    api.lifecycle.onDispose(dispose)
+    ctx.keymap.layer(() => ({
+      mode: "global",
+      commands: [
+        {
+          id: "quick-links.open",
+          title: "Open session links",
+          group: "Plugin",
+          palette: true,
+          slash: { name: "links" },
+          run: () => showQuickLinks().catch(() => {
+            ctx.ui.toast.show({ variant: "error", message: "Could not load session links." })
+          }),
+        },
+      ],
+      bindings: ["quick-links.open"],
+    }))
   },
-} satisfies TuiPluginModule
+})

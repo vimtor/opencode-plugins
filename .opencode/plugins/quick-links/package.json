@@ -1,0 +1,5 @@
+{
+  "name": "opencode-quick-links-local",
+  "type": "module",
+  "exports": { "./tui": "./tui.ts" }
+}

@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true
+  },
+  "include": [".opencode/plugins/**/*.ts", "packages/*/.opencode/plugins/**/*.ts"]
+}
