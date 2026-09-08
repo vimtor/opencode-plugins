@@ -166,6 +166,9 @@ test("Quick Links reads V2 user/assistant text, deduplicates URLs, and ignores t
           { type: "user", text: "See https://example.com/guide." },
           { type: "assistant", content: [
             { type: "text", text: "[Guide](https://example.com/guide) and https://example.com/page_(one)." },
+            { type: "text", text: "**[PR](https://github.com/anomalyco/opencode-console/pull/2090)**" },
+            { type: "text", text: "[Guide](https://example.com/guide)follow-up(foo) **https://example.com/guide**" },
+            { type: "text", text: "**[Nested](https://example.com/page_(one_(two))/details)**" },
             { type: "reasoning", text: "https://private.example/reasoning" },
             { type: "tool", state: { content: [{ type: "text", text: "https://private.example/tool" }] } },
           ] },
@@ -192,7 +195,12 @@ test("Quick Links reads V2 user/assistant text, deduplicates URLs, and ignores t
   assert.equal(command.id, "quick-links.open")
   assert.equal(command.slash.name, "links")
   await command.run()
-  assert.deepEqual(dialog.options.map((option) => option.value), ["https://example.com/guide", "https://example.com/page_(one)"])
+  assert.deepEqual(dialog.options.map((option) => option.value), [
+    "https://example.com/guide",
+    "https://example.com/page_(one)",
+    "https://github.com/anomalyco/opencode-console/pull/2090",
+    "https://example.com/page_(one_(two))/details",
+  ])
   cleanup()
   assert.equal(disposed, true)
 })
