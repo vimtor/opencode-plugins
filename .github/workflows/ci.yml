@@ -31,6 +31,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      - name: Quick Quote
+        run: bun run --cwd packages/opencode-quick-quote test
+
       - name: Packaged plugins
         run: npm test
 

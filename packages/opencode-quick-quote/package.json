@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-quick-quote",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Quote paragraphs from the last assistant reply with inline autocomplete.",
+  "type": "module",
+  "exports": {
+    "./tui": {
+      "types": "./dist/tui.d.ts",
+      "import": "./dist/tui.js",
+      "default": "./dist/tui.js"
+    }
+  },
+  "files": ["dist", "tui.js", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun --conditions=browser test"
+  },
+  "author": "vimtor",
+  "license": "MIT",
+  "dependencies": {
+    "@opencode/plugin": "0.0.0-beta-19296",
+    "marked": "17.0.1"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.10",
+    "solid-js": ">=1.9.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^5.9.3"
+  }
+}
