@@ -44,10 +44,11 @@ OpenCode auto-loads the local source from `.opencode/plugins/quick-links/` when 
 From the monorepo root:
 
 ```sh
-npm install
-npm run typecheck -w opencode-quick-links
-npm run build -w opencode-quick-links
-npm run smoke -w opencode-quick-links
+bun install
+bun run --filter opencode-quick-links build
+bun run --filter opencode-quick-links typecheck
+bun run --filter opencode-quick-links test
+bun run --filter opencode-quick-links smoke
 ```
 
 Restart OpenCode after changing plugin files or config.

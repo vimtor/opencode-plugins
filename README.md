@@ -12,20 +12,32 @@ My personal plugins for OpenCode V2 (beta).
 
 ## Development
 
-```sh
-npm install
-npm run typecheck
-npm run build
-npm test
-npm run smoke
-npm run pack:dry-run
-```
-
-Run a package script for one plugin with `-w`:
+Use Bun 1.4.0.
 
 ```sh
-npm run typecheck -w opencode-postgres
+bun install
+bun run build
+bun run typecheck
+bun test
+bun run test:packages
+bun run smoke
+bun run pack:dry-run
 ```
+
+Tests live in each package's `test/*.test.ts` files and use `bun:test`. Build first;
+tests and their typechecks use the package's compiled exports. `bun run test:packages` runs
+the same suites against tarballs installed in an isolated directory.
+
+Run scripts for one plugin with `--filter`:
+
+```sh
+bun run --filter opencode-postgres build
+bun run --filter opencode-postgres typecheck
+bun run --filter opencode-postgres test
+```
+
+Releases use Changesets and npm trusted publishing. The release workflow installs
+Node.js and the npm CLI for publishing; dependency installation and tests use Bun.
 
 Start local databases for the Postgres and MySQL plugins:
 

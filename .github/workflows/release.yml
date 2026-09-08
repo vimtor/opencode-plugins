@@ -33,22 +33,28 @@ jobs:
           package-manager-cache: false
 
       - name: Update npm
+        # Changesets uses the npm CLI for trusted publishing.
         run: npm install -g npm@latest
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: bun run build
+
+      - name: Typecheck
+        run: bun run typecheck
 
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
-          version: npm run version
-          publish: npm run release
+          version: bun run version
+          publish: bun run release
           commit: "ci: version packages"
           title: "ci: version packages"
         env:

@@ -20,10 +20,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "smoke": "node -e \"import('./dist/tui.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 CLI plugin export') })\"",
-    "pack:dry-run": "npm pack --dry-run",
-    "prepack": "npm run build && npm run smoke",
-    "prepublishOnly": "npm run typecheck && npm run prepack"
+    "test": "bun test",
+    "smoke": "bun -e \"import('./dist/tui.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 CLI plugin export') })\"",
+    "pack:dry-run": "bun pm pack --dry-run",
+    "prepack": "bun run build && bun run smoke",
+    "prepublishOnly": "bun run prepack && bun run typecheck"
   },
   "keywords": [
     "opencode",

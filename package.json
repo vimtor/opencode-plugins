@@ -5,17 +5,19 @@
   "private": true,
   "description": "OpenCode plugins maintained by vimtor.",
   "type": "module",
+  "packageManager": "bun@1.4.0",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "tsc --noEmit && npm run typecheck --workspaces --if-present",
-    "test": "node scripts/test-packages.mjs",
-    "smoke": "npm run smoke --workspaces --if-present",
-    "pack:dry-run": "npm run pack:dry-run --workspaces --if-present",
-    "prepublishOnly": "npm run prepublishOnly --workspaces --if-present",
-    "version": "changeset version && npm install --package-lock-only",
+    "build": "bun run --filter './packages/*' build",
+    "typecheck": "tsc --noEmit && bun run --filter './packages/*' typecheck",
+    "test": "bun test",
+    "test:packages": "bun scripts/test-packages.mjs",
+    "smoke": "bun run --filter './packages/*' smoke",
+    "pack:dry-run": "bun run --filter './packages/*' pack:dry-run",
+    "prepublishOnly": "bun run --filter './packages/*' prepublishOnly",
+    "version": "changeset version && bun install --lockfile-only",
     "release": "changeset publish"
   },
   "keywords": [
@@ -38,6 +40,7 @@
     "@changesets/cli": "^2.31.0",
     "@opencode/plugin": "0.0.0-beta-19296",
     "@opentui/core": "0.5.10",
+    "@types/bun": "^1.4.2",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.6",
     "typescript": "^5.9.3"

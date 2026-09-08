@@ -12,9 +12,14 @@ stage local connection strings.
 ## Repository Release Setup
 
 - Workspaces live under `packages/*`.
-- Root `npm run release` runs `changeset publish`.
+- Use Bun 1.4.0, recorded in the root `packageManager` field, and commit `bun.lock`.
+- Build outputs (`dist/`) and source maps are Git-ignored. Builds generate the
+  files included in published tarballs; hand-written root entrypoint wrappers are tracked.
+- Root `bun run release` runs `changeset publish`.
 - `.github/workflows/release.yml` runs on pushes to `main` and uses npm trusted
   publishing through GitHub OIDC.
+- Changesets invokes the npm CLI for publishing. The release job installs Node.js
+  and current npm for that purpose; workspace installation and tests use Bun.
 - `.changeset/README.md` documents the normal changeset flow.
 - Review `git status`, `git diff`, `git diff --cached`, and
   `git log --oneline -10` before committing.
@@ -40,25 +45,32 @@ stage local connection strings.
 Run local typechecks and builds for the affected packages:
 
 ```sh
-npm run typecheck -w <package>
-npm run build -w <package>
-npm pack -w <package> --dry-run --ignore-scripts
+bun run --filter <package> build
+bun run --filter <package> typecheck
+bun run --filter <package> pack:dry-run --ignore-scripts
 git diff --check
 ```
 
 Runtime tests run in GitHub CI. Its verification sequence is:
 
 ```sh
-npm run typecheck
-npm run build
-npm test
-npm run smoke
-npm run pack:dry-run
+bun run build
+bun run typecheck
+bun test
+bun run test:packages
+bun run smoke
+bun run pack:dry-run
 ```
 
-`npm test` installs workspace tarballs in an isolated directory and exercises
-the packaged plugins, including CLI directory loading. `pack:dry-run` invokes
-prepack smoke checks, so use `--ignore-scripts` for local package inspection.
+Tests live in `packages/<plugin>/test/*.test.ts` and use `bun:test`, including
+Bun's `expect` and `spyOn` APIs. Package typechecks include the tests. Build before
+typechecking or running them: they import compiled package exports.
+`bun run --filter <package> test` selects one package.
+
+`bun run test:packages` packs each workspace, installs its tarball in an isolated
+directory with Bun, and runs the package-local suites there, including CLI
+directory loading. `pack:dry-run` invokes prepack smoke checks, so use
+`--ignore-scripts` for local package inspection.
 
 Inspect tarball contents for compiled entrypoints, types, and CLI wrappers.
 Keep credentials and personal configuration out of commits. Stage only intended
@@ -68,7 +80,7 @@ release files.
 
 For a user-facing change to an already published package:
 
-1. Add a changeset with `npx changeset`.
+1. Add a changeset with `bunx changeset`.
 2. Commit and push the implementation plus changeset when requested.
 3. Monitor CI and Release with `gh run list` and `gh run watch`.
 4. The Changesets action opens `ci: version packages` PR.
@@ -82,8 +94,8 @@ For a user-facing change to an already published package:
 This repository starts new packages at `0.1.0` and does not add a changeset for
 the initial publish.
 
-1. Add the workspace package and run `npm install --package-lock-only`.
-2. Install dependencies if local verification requires them with `npm install`.
+1. Add the workspace package and run `bun install --lockfile-only`.
+2. Install dependencies if local verification requires them with `bun install`.
 3. Confirm the name is available with `npm view <package> version`. Expect npm
    `E404` before the first publish.
 4. Validate, commit, and push when requested.
