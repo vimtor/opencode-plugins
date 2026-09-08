@@ -19,24 +19,50 @@ stage local connection strings.
 - Review `git status`, `git diff`, `git diff --cached`, and
   `git log --oneline -10` before committing.
 
+## V2 Package Conventions
+
+- Use `@opencode/plugin` as a runtime dependency, pinned to the targeted beta.
+- Server plugins default-export `Plugin.define({ id, setup })` through `.`.
+- CLI plugins import `@opencode/plugin/tui` and export `./tui`. Configure
+  CLI-only packages in global `~/.config/opencode/cli.json` under `plugins`.
+- Local CLI directory loading needs a top-level `tui` entrypoint. These packages
+  use `tui.js` exporting `./dist/tui.js`; include it in the package's `files`.
+  npm's `exports` mapping alone does not cover this loading path.
+- Register CLI keymap layers inside a mounted slot's `render` callback, such
+  as `app` or `prompt.footer`. Return the slot cleanup from `setup`.
+- Check `opencode2 --version` before trying a plugin in the terminal. The V2
+  CLI package is `@opencode/cli`; it must support the targeted plugin API.
+- Confirm commands appear in the running client. Import checks and mocked UI
+  tests alone do not verify command registration.
+
 ## Validate Before Release
 
-Run package-level checks first, then repository checks:
+Run local typechecks and builds for the affected packages:
 
 ```sh
 npm run typecheck -w <package>
 npm run build -w <package>
-npm run smoke -w <package>
-npm run pack:dry-run -w <package>
-npm run typecheck
-npm run build
-npm run smoke
-npm run pack:dry-run
+npm pack -w <package> --dry-run --ignore-scripts
 git diff --check
 ```
 
-Inspect the dry-run tarball contents. Verify secrets and local wrappers are not
-staged. Stage only intended release files.
+Runtime tests run in GitHub CI. Its verification sequence is:
+
+```sh
+npm run typecheck
+npm run build
+npm test
+npm run smoke
+npm run pack:dry-run
+```
+
+`npm test` installs workspace tarballs in an isolated directory and exercises
+the packaged plugins, including CLI directory loading. `pack:dry-run` invokes
+prepack smoke checks, so use `--ignore-scripts` for local package inspection.
+
+Inspect tarball contents for compiled entrypoints, types, and CLI wrappers.
+Keep credentials and personal configuration out of commits. Stage only intended
+release files.
 
 ## Existing Package Release
 
@@ -53,8 +79,8 @@ For a user-facing change to an already published package:
 
 ## New Package Initial Release
 
-New packages are different. This repository starts them at `0.1.0` and does
-not add a changeset for the initial publish, matching `opencode-keep-going`.
+This repository starts new packages at `0.1.0` and does not add a changeset for
+the initial publish.
 
 1. Add the workspace package and run `npm install --package-lock-only`.
 2. Install dependencies if local verification requires them with `npm install`.
