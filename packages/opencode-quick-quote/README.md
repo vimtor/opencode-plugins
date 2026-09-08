@@ -1,6 +1,6 @@
 # Quick Quote
 
-Inline quote completion for OpenCode V2 (beta-19296). Local prototype.
+Inline quote completion for OpenCode V2 (beta-19296).
 
 Type `>` at the start of any prompt line to browse paragraphs from the last
 assistant reply. Type `>search words` to filter, use ↑/↓ to choose, then Enter
@@ -10,6 +10,17 @@ line. Repeat to quote several paragraphs in one draft.
 Escape dismisses the list and leaves your draft intact. Enter with no matches
 keeps the search open. List items are individually selectable; code blocks and
 tables stay together. Completion is disabled inside fenced code and shell mode.
+
+## Install
+
+Add to `plugins` in `~/.config/opencode/cli.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["opencode-quick-quote"]
+}
+```
 
 ## Try locally
 
@@ -30,7 +41,7 @@ Add the absolute package directory to `plugins` in `~/.config/opencode/cli.json`
 
 The inline list uses OpenTUI renderables and the focused prompt's edit-buffer
 events. It is plugin-owned; OpenCode's native mention dropdown is internal.
-The current plugin API exposes no prompt-editor handle, so the prototype locates
+The current plugin API exposes no prompt-editor handle, so the plugin locates
 the editor through the `prompt.footer` slot's renderable ancestors.
 
 ## Development
@@ -40,4 +51,6 @@ bun run --cwd packages/opencode-quick-quote typecheck
 bun run --cwd packages/opencode-quick-quote build
 ```
 
-Package tests use `bun:test` and run in GitHub CI.
+Package tests use `bun:test` and run in GitHub CI against both workspace builds
+and installed tarballs. The test scripts enable Solid's `browser` condition so
+UI lifecycle hooks run as they do in the CLI.

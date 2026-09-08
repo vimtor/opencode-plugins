@@ -47,10 +47,11 @@ OpenCode auto-loads the local source from `.opencode/plugins/keep-going/` when r
 From the monorepo root:
 
 ```sh
-npm install
-npm run typecheck -w opencode-keep-going
-npm run build -w opencode-keep-going
-npm run smoke -w opencode-keep-going
+bun install
+bun run --filter opencode-keep-going build
+bun run --filter opencode-keep-going typecheck
+bun run --filter opencode-keep-going test
+bun run --filter opencode-keep-going smoke
 ```
 
 Restart OpenCode after changing plugin files or config.

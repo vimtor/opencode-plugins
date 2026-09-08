@@ -2,6 +2,7 @@ node_modules/
 **/node_modules/
 dist/
 **/dist/
+*.map
 *.tgz
 .DS_Store
 .env

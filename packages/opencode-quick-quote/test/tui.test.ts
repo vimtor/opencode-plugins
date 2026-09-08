@@ -1,13 +1,23 @@
 import { afterEach, expect, test } from "bun:test"
 import { createEffect, createRoot } from "solid-js"
+import { dirname } from "node:path"
+import { fileURLToPath } from "node:url"
 import { BoxRenderable, TextareaRenderable } from "@opentui/core"
 import { createTestRenderer } from "@opentui/core/testing"
+import { Host } from "@opencode/plugin/host"
 import type { Plugin } from "@opencode/plugin/tui"
 import type { KeymapLayer, SlotClaim } from "@opencode/plugin/tui/context"
-import quickQuote from "../plugin/src/tui.js"
+import quickQuote from "opencode-quick-quote/tui"
 
 const cleanup: Array<() => void> = []
 afterEach(() => { while (cleanup.length) cleanup.pop()!() })
+
+test("loads through a local directory as well as npm exports", async () => {
+  const directory = dirname(dirname(fileURLToPath(import.meta.resolve("opencode-quick-quote/tui"))))
+  const { tui } = Host.resolve({ directory })
+  if (!tui) throw new Error("Missing local TUI entrypoint")
+  expect(await Host.load(tui)).toHaveProperty("default", quickQuote)
+})
 
 async function harness() {
   const view = await createTestRenderer({ width: 80, height: 24 })

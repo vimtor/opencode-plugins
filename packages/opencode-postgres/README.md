@@ -93,10 +93,11 @@ This package includes `.opencode/plugins/postgres.ts`, so OpenCode can load the 
 From the monorepo root:
 
 ```sh
-npm install
-npm run typecheck -w opencode-postgres
-npm run build -w opencode-postgres
-npm run smoke -w opencode-postgres
+bun install
+bun run --filter opencode-postgres build
+bun run --filter opencode-postgres typecheck
+bun run --filter opencode-postgres test
+bun run --filter opencode-postgres smoke
 ```
 
 Restart OpenCode after plugin or config changes.

@@ -2,7 +2,6 @@
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-quick-quote",
   "version": "0.1.0",
-  "private": true,
   "description": "Quote paragraphs from the last assistant reply with inline autocomplete.",
   "type": "module",
   "exports": {
@@ -12,14 +11,27 @@
       "default": "./dist/tui.js"
     }
   },
-  "files": ["dist", "tui.js", "README.md"],
+  "files": ["dist", "tui.js", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "bun --conditions=browser test"
+    "test": "bun --conditions=browser test",
+    "smoke": "bun -e \"import('./dist/tui.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 CLI plugin export') })\"",
+    "pack:dry-run": "bun pm pack --dry-run",
+    "prepack": "bun run build && bun run smoke",
+    "prepublishOnly": "bun run prepack && bun run typecheck"
   },
+  "keywords": ["opencode", "opencode-plugin", "opencode-tui", "plugin", "quote", "autocomplete", "ai"],
   "author": "vimtor",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-plugins.git",
+    "directory": "packages/opencode-quick-quote"
+  },
+  "bugs": { "url": "https://github.com/vimtor/opencode-plugins/issues" },
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-quick-quote#readme",
+  "publishConfig": { "access": "public", "provenance": true },
   "dependencies": {
     "@opencode/plugin": "0.0.0-beta-19296",
     "marked": "17.0.1"
@@ -29,7 +41,6 @@
     "solid-js": ">=1.9.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.0",
     "typescript": "^5.9.3"
   }
 }

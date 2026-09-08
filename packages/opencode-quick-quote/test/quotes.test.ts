@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { blockquote, filterParagraphs, paragraphs, quoteTrigger } from "../plugin/src/quotes.js"
+
+const { blockquote, filterParagraphs, paragraphs, quoteTrigger } = await import(
+  new URL("./quotes.js", import.meta.resolve("opencode-quick-quote/tui")).href
+) as typeof import("../dist/quotes.js")
 
 describe("paragraphs", () => {
   test("preserves multiline paragraphs and individual list items", () => {

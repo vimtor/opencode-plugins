@@ -9,24 +9,36 @@ My personal plugins for OpenCode V2 (beta).
 - [`opencode-exit-plan`](packages/opencode-exit-plan/README.md): switches from the plan mode to a build agent when you say phrases like "go ahead".
 - [`opencode-keep-going`](packages/opencode-keep-going/README.md): sends a continue prompt when you press Enter on an empty input.
 - [`opencode-quick-links`](packages/opencode-quick-links/README.md): searches and opens links from the active conversation.
-- [`opencode-quick-quote`](packages/opencode-quick-quote/README.md): quotes paragraphs from the last reply with inline autocomplete (prototype).
+- [`opencode-quick-quote`](packages/opencode-quick-quote/README.md): quotes paragraphs from the last reply with inline autocomplete.
 
 ## Development
 
-```sh
-npm install
-npm run typecheck
-npm run build
-npm test
-npm run smoke
-npm run pack:dry-run
-```
-
-Run a package script for one plugin with `-w`:
+Use Bun 1.4.0.
 
 ```sh
-npm run typecheck -w opencode-postgres
+bun install
+bun run build
+bun run typecheck
+bun run test
+bun run test:packages
+bun run smoke
+bun run pack:dry-run
 ```
+
+Tests live in each package's `test/*.test.ts` files and use `bun:test`. Build first;
+tests and their typechecks use the package's compiled exports. `bun run test:packages` runs
+the same suites against tarballs installed in an isolated directory.
+
+Run scripts for one plugin with `--filter`:
+
+```sh
+bun run --filter opencode-postgres build
+bun run --filter opencode-postgres typecheck
+bun run --filter opencode-postgres test
+```
+
+Releases use Changesets and npm trusted publishing. The release workflow installs
+Node.js and the npm CLI for publishing; dependency installation and tests use Bun.
 
 Start local databases for the Postgres and MySQL plugins:
 

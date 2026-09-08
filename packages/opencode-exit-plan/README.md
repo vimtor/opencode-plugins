@@ -45,10 +45,11 @@ This package includes `.opencode/plugins/exit-plan.ts`, so OpenCode auto-loads t
 From the monorepo root:
 
 ```sh
-npm install
-npm run typecheck -w opencode-exit-plan
-npm run build -w opencode-exit-plan
-npm run smoke -w opencode-exit-plan
+bun install
+bun run --filter opencode-exit-plan build
+bun run --filter opencode-exit-plan typecheck
+bun run --filter opencode-exit-plan test
+bun run --filter opencode-exit-plan smoke
 ```
 
 Restart OpenCode after changing plugin files or config.
