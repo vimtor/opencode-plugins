@@ -56,7 +56,7 @@ Runtime tests run in GitHub CI. Its verification sequence is:
 ```sh
 bun run build
 bun run typecheck
-bun test
+bun run test
 bun run test:packages
 bun run smoke
 bun run pack:dry-run
@@ -66,6 +66,9 @@ Tests live in `packages/<plugin>/test/*.test.ts` and use `bun:test`, including
 Bun's `expect` and `spyOn` APIs. Package typechecks include the tests. Build before
 typechecking or running them: they import compiled package exports.
 `bun run --filter <package> test` selects one package.
+
+UI lifecycle tests need Solid's `browser` export condition. The root test script
+and installed-tarball runner pass `--conditions=browser` for this purpose.
 
 `bun run test:packages` packs each workspace, installs its tarball in an isolated
 directory with Bun, and runs the package-local suites there, including CLI

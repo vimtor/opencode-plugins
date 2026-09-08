@@ -25,7 +25,7 @@ try {
   execFileSync(process.execPath, [
     "install", "--ignore-scripts", "--linker", "hoisted",
   ], { cwd: directory, stdio: "inherit" })
-  execFileSync(process.execPath, ["test", "./test"], { cwd: directory, stdio: "inherit" })
+  execFileSync(process.execPath, ["--conditions=browser", "test", "./test"], { cwd: directory, stdio: "inherit" })
 } catch (error) {
   console.error(error.message)
   process.exitCode = 1

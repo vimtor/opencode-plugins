@@ -12,7 +12,7 @@
   "scripts": {
     "build": "bun run --filter './packages/*' build",
     "typecheck": "tsc --noEmit && bun run --filter './packages/*' typecheck",
-    "test": "bun test",
+    "test": "bun --conditions=browser test",
     "test:packages": "bun scripts/test-packages.mjs",
     "smoke": "bun run --filter './packages/*' smoke",
     "pack:dry-run": "bun run --filter './packages/*' pack:dry-run",

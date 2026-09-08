@@ -9,6 +9,7 @@ My personal plugins for OpenCode V2 (beta).
 - [`opencode-exit-plan`](packages/opencode-exit-plan/README.md): switches from the plan mode to a build agent when you say phrases like "go ahead".
 - [`opencode-keep-going`](packages/opencode-keep-going/README.md): sends a continue prompt when you press Enter on an empty input.
 - [`opencode-quick-links`](packages/opencode-quick-links/README.md): searches and opens links from the active conversation.
+- [`opencode-quick-quote`](packages/opencode-quick-quote/README.md): quotes paragraphs from the last reply with inline autocomplete.
 
 ## Development
 
@@ -18,7 +19,7 @@ Use Bun 1.4.0.
 bun install
 bun run build
 bun run typecheck
-bun test
+bun run test
 bun run test:packages
 bun run smoke
 bun run pack:dry-run

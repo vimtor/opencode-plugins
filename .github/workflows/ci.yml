@@ -31,7 +31,7 @@ jobs:
         run: bun run typecheck
 
       - name: Plugin tests
-        run: bun test
+        run: bun run test
 
       - name: Packaged plugins
         run: bun run test:packages

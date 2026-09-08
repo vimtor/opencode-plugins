@@ -76,6 +76,21 @@
         "solid-js": ">=1.9.0",
       },
     },
+    "packages/opencode-quick-quote": {
+      "name": "opencode-quick-quote",
+      "version": "0.1.0",
+      "dependencies": {
+        "@opencode/plugin": "0.0.0-beta-19296",
+        "marked": "17.0.1",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
+      },
+      "peerDependencies": {
+        "@opentui/core": ">=0.5.10",
+        "solid-js": ">=1.9.0",
+      },
+    },
   },
   "packages": {
     "@ai-sdk/provider": ["@ai-sdk/provider@3.0.8", "", { "dependencies": { "json-schema": "^0.4.0" } }, "sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ=="],
@@ -673,6 +688,8 @@
     "opencode-postgres": ["opencode-postgres@workspace:packages/opencode-postgres"],
 
     "opencode-quick-links": ["opencode-quick-links@workspace:packages/opencode-quick-links"],
+
+    "opencode-quick-quote": ["opencode-quick-quote@workspace:packages/opencode-quick-quote"],
 
     "outdent": ["outdent@0.5.0", "", {}, "sha512-/jHxFIzoMXdqPzTaCpFzAAWhpkSjZPF4Vsn6jAfNpmbH/ymsmd7Qc6VE9BGn0L6YMj6uwpQLxCECpus4ukKS9Q=="],
 
