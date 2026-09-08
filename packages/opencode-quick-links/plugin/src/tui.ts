@@ -2,23 +2,23 @@ import { Plugin } from "@opencode/plugin/tui"
 import open from "open"
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi
-const TRAILING_PUNCTUATION = /[\],.;:!?}]+$/
+const TRAILING_PUNCTUATION = /[\],.;:!?}*]+$/
 
 type QuickLink = {
   url: string
 }
 
-function trimTrailingParentheses(url: string) {
-  let result = url
+function trimLink(url: string) {
+  let depth = 0
 
-  while (result.endsWith(")")) {
-    const opening = (result.match(/\(/g) ?? []).length
-    const closing = (result.match(/\)/g) ?? []).length
-    if (closing <= opening) break
-    result = result.slice(0, -1)
+  for (let index = 0; index < url.length; index++) {
+    if (url[index] === "(") depth++
+    if (url[index] !== ")") continue
+    if (depth === 0) return url.slice(0, index).replace(TRAILING_PUNCTUATION, "")
+    depth--
   }
 
-  return result
+  return url.replace(TRAILING_PUNCTUATION, "")
 }
 
 function extractLinks(messages: ReturnType<Plugin.Context["data"]["session"]["message"]["list"]>) {
@@ -34,7 +34,7 @@ function extractLinks(messages: ReturnType<Plugin.Context["data"]["session"]["me
 
     for (const text of texts) {
       for (const match of text.matchAll(URL_PATTERN)) {
-        const candidate = trimTrailingParentheses(match[0].replace(TRAILING_PUNCTUATION, ""))
+        const candidate = trimLink(match[0])
         let url: string
 
         try {

@@ -1,17 +1,19 @@
 import { Plugin } from "@opencode/plugin/tui";
 import open from "open";
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
-const TRAILING_PUNCTUATION = /[\],.;:!?}]+$/;
-function trimTrailingParentheses(url) {
-    let result = url;
-    while (result.endsWith(")")) {
-        const opening = (result.match(/\(/g) ?? []).length;
-        const closing = (result.match(/\)/g) ?? []).length;
-        if (closing <= opening)
-            break;
-        result = result.slice(0, -1);
+const TRAILING_PUNCTUATION = /[\],.;:!?}*]+$/;
+function trimLink(url) {
+    let depth = 0;
+    for (let index = 0; index < url.length; index++) {
+        if (url[index] === "(")
+            depth++;
+        if (url[index] !== ")")
+            continue;
+        if (depth === 0)
+            return url.slice(0, index).replace(TRAILING_PUNCTUATION, "");
+        depth--;
     }
-    return result;
+    return url.replace(TRAILING_PUNCTUATION, "");
 }
 function extractLinks(messages) {
     const seen = new Set();
@@ -24,7 +26,7 @@ function extractLinks(messages) {
                 : [];
         for (const text of texts) {
             for (const match of text.matchAll(URL_PATTERN)) {
-                const candidate = trimTrailingParentheses(match[0].replace(TRAILING_PUNCTUATION, ""));
+                const candidate = trimLink(match[0]);
                 let url;
                 try {
                     const parsed = new URL(candidate);
