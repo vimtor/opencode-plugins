@@ -158,8 +158,10 @@ function mount(ctx: Plugin.Context, prompt: Prompt) {
     const { row, col } = editor.logicalCursor
     editing = true
     try {
-      editor.deleteRange(row, 0, row, col)
-      editor.insertText(blockquote(paragraph) + "\n")
+      // Keep the existing >: deleting an entire line can also remove its
+      // line-start marker in OpenTUI's edit buffer, collapsing a preceding blank.
+      editor.deleteRange(row, 1, row, col)
+      editor.insertText(blockquote(paragraph).slice(1) + "\n")
     } finally {
       editing = false
     }
