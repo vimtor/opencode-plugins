@@ -1,5 +1,11 @@
 # opencode-quick-links
 
+## 1.0.1
+
+### Patch Changes
+
+- 74ff086: Hide HTTP/HTTPS protocols in link previews and clarify the conversation links search placeholder.
+
 ## 1.0.0
 
 ### Major Changes
