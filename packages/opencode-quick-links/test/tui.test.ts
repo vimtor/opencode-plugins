@@ -1,10 +1,16 @@
-import { expect, test } from "bun:test"
+import { afterEach, expect, test } from "bun:test"
+import { createRoot } from "solid-js"
+import { InputRenderable } from "@opentui/core"
+import { createTestRenderer } from "@opentui/core/testing"
 import { dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Host } from "@opencode/plugin/host"
 import type { Plugin } from "@opencode/plugin/tui"
-import type { DialogSelectOptions, KeymapCommand, KeymapLayer, SlotClaim, ToastOptions } from "@opencode/plugin/tui/context"
+import type { KeymapCommand, KeymapLayer, SlotClaim, ToastOptions } from "@opencode/plugin/tui/context"
 import quickLinks from "opencode-quick-links/tui"
+
+const cleanups: Array<() => void> = []
+afterEach(() => { while (cleanups.length) cleanups.pop()!() })
 
 test("loads through a local directory as well as npm exports", async () => {
   const directory = dirname(dirname(fileURLToPath(import.meta.resolve("opencode-quick-links/tui"))))
@@ -15,15 +21,24 @@ test("loads through a local directory as well as npm exports", async () => {
 
 test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning content", async () => {
   let command: KeymapCommand | undefined
-  let dialog: DialogSelectOptions<string> | undefined
+  let dialogCommands: readonly KeymapCommand[] = []
+  const view = await createTestRenderer({ width: 80, height: 24 })
+  cleanups.push(() => view.renderer.destroy())
   let render!: SlotClaim<"app">["render"]
   let mounted = false
   let disposed = false
   const messages: ReturnType<Plugin.Context["data"]["session"]["message"]["list"]> = []
   const cleanup = await quickLinks.setup({
+    renderer: view.renderer,
+    theme: {
+      text: { default: "#ffffff", subdued: "#aaaaaa" },
+      background: { action: { primary: { focused: "#333333" } } },
+    },
     keymap: { layer: (get: () => KeymapLayer) => {
       expect(mounted).toBe(true)
-      command = get().commands?.[0]
+      const layer = get()
+      if (layer.target) dialogCommands = layer.commands ?? []
+      else command = layer.commands?.[0]
     } },
     data: { session: { message: {
       sync: async (sessionID: string) => {
@@ -52,7 +67,16 @@ test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning c
       },
       router: { current: () => ({ type: "session", sessionID: "session" }) },
       toast: { show: (input: ToastOptions) => { throw new Error(input.message) } },
-      dialog: { select: async (input: DialogSelectOptions<string>) => { dialog = input } },
+      dialog: {
+        set: () => {},
+        show: (render: () => ReturnType<SlotClaim<"app">["render"]>, close: () => void) => {
+          createRoot((dispose) => {
+            cleanups.push(dispose)
+            view.renderer.root.add(render())
+          })
+          close()
+        },
+      },
     },
   } as unknown as Plugin.Context)
   expect(command).toBeUndefined()
@@ -62,18 +86,30 @@ test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning c
   expect(command.id).toBe("quick-links.open")
   expect(command.slash?.name).toBe("links")
   await command.run()
-  expect(dialog?.placeholder).toBe("Search links in the conversation")
-  expect(dialog?.options[0]).toMatchObject({
-    title: "example.com/guide",
-    value: "https://example.com/guide",
-  })
-  expect(dialog?.options[0]).toHaveProperty("titleView", expect.any(Function))
-  expect(dialog?.options.map((option) => option.value)).toEqual([
-    "https://example.com/guide",
-    "https://example.com/page_(one)",
-    "https://github.com/anomalyco/opencode-console/pull/2090",
-    "https://example.com/page_(one_(two))/details",
-  ])
+  await view.flush()
+  const frame = view.captureCharFrame()
+  expect(frame).toContain("Search links in the conversation")
+  expect(frame.match(/example.com\/guide/g)).toHaveLength(1)
+  expect(frame).toContain("example.com/page_(one)")
+  expect(frame).toContain("github.com/anomalyco/opencode-console/pull/2090")
+  expect(frame).toContain("example.com/page_(one_(two))/details")
+  expect(frame).not.toContain("https://")
+  expect(frame).not.toContain("private.example")
+  const footer = frame.split("\n").find((line) => line.includes("ctrl+y"))!
+  expect(footer).toMatch(/Copy ctrl\+y\s+Open enter\s*$/)
+  expect(dialogCommands.map((item) => item.bind)).toEqual(["up", "down", "return", "ctrl+y"])
+  const input = view.renderer.currentFocusedEditor as InputRenderable
+  input.value = "pull/2090"
+  input.emit("input", input.value)
+  await view.flush()
+  expect(view.captureCharFrame()).toContain("github.com/anomalyco/opencode-console/pull/2090")
+  expect(view.captureCharFrame()).not.toContain("example.com/guide")
+  input.value = "no-such-link"
+  input.emit("input", input.value)
+  await view.flush()
+  expect(view.captureCharFrame()).toContain("No matching links")
+  await dialogCommands.find((item) => item.bind === "ctrl+y")!.run()
+  await dialogCommands.find((item) => item.bind === "return")!.run()
   if (cleanup) await cleanup()
   expect(disposed).toBe(true)
 })

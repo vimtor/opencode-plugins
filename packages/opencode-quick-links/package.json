@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun --conditions=browser test",
     "smoke": "bun -e \"import('./dist/tui.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 CLI plugin export') })\"",
     "pack:dry-run": "bun pm pack --dry-run",
     "prepack": "bun run build && bun run smoke",
@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@opencode/plugin": "0.0.0-beta-19296",
+    "fuzzysort": "^3.1.0",
     "open": "^10.1.2"
   },
   "peerDependencies": {
