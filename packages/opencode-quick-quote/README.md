@@ -2,8 +2,12 @@
 
 Inline quote completion for OpenCode V2 (beta-19296).
 
-Type `>` at the start of any prompt line to browse paragraphs from the last
-assistant reply. Type `>search words` to filter, use ↑/↓ to choose, then Enter
+Type `>` at the start of any prompt line to browse paragraphs from the latest
+assistant response group. Replies to the same user prompt stay together, including
+follow-ups after background notifications, in conversation order. While a new
+prompt is unanswered, the last available response group stays quotable.
+
+Type `>search words` to filter, use ↑/↓ to choose, then Enter
 to insert the complete Markdown blockquote. The cursor moves to a blank reply
 line. Repeat to quote several paragraphs in one draft.
 

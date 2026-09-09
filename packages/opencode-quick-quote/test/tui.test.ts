@@ -62,6 +62,8 @@ async function harness() {
         { type: "reasoning", text: "Private reasoning." },
       ] },
       { type: "assistant", content: [{ type: "tool", text: "Tool output." }] },
+      { type: "synthetic", text: "Shell finished: gh pr checks --watch" },
+      { type: "assistant", content: [{ type: "text", text: "Console CI passed too." }] },
     ] } } },
     ui: {
       slot: (claim: SlotClaim<"prompt.footer">) => { slot = claim; return () => dispose() },
@@ -106,11 +108,22 @@ test("filters inline without editing the draft; inserts full quotes repeatedly",
   await h.type("Can't do that.\n\n>message")
   h.run("insert")
   expect(h.input.plainText).toEndWith("Can't do that.\n\n> Send her a message.\n> It might help.\n")
+  await h.type("\n>console")
+  h.run("insert")
+  expect(h.input.plainText).toEndWith("\n> Console CI passed too.\n")
 })
 
 test("arrow selection chooses a paragraph without inserting a preview", async () => {
   const h = await harness()
   await h.type(">")
+  const frame = h.captureCharFrame()
+  expect(frame).toContain("Call her on Saturday.")
+  expect(frame).toContain("Console CI passed too.")
+  expect(frame).not.toContain("An older response.")
+  expect(frame).not.toContain("A user paragraph.")
+  expect(frame).not.toContain("Private reasoning.")
+  expect(frame).not.toContain("Tool output.")
+  expect(frame).not.toContain("Shell finished")
   h.run("next")
   expect(h.input.plainText).toBe(">")
   h.run("insert")
