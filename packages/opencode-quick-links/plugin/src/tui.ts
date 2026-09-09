@@ -1,5 +1,4 @@
 import { Plugin } from "@opencode/plugin/tui"
-import { TextNodeRenderable } from "@opentui/core"
 import open from "open"
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi
@@ -76,19 +75,7 @@ export default Plugin.define({
       const url = await ctx.ui.dialog.select({
         title: "Quick Links",
         placeholder: "Search links in the conversation",
-        options: links.map((link) => {
-          const url = new URL(link.url)
-          const suffix = url.pathname + url.search + url.hash
-          return {
-            title: url.host + suffix,
-            // The host forwards select options to DialogSelect, including titleView.
-            titleView: () => TextNodeRenderable.fromNodes([
-              TextNodeRenderable.fromString(url.host, { fg: ctx.theme.text.default }),
-              TextNodeRenderable.fromString(suffix, { fg: ctx.theme.text.subdued }),
-            ]),
-            value: link.url,
-          }
-        }),
+        options: links.map((link) => ({ title: link.url.replace(/^https?:\/\//, ""), value: link.url })),
       })
       if (!url) return
       await open(url).catch(() => {
