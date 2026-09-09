@@ -62,6 +62,12 @@ test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning c
   expect(command.id).toBe("quick-links.open")
   expect(command.slash?.name).toBe("links")
   await command.run()
+  expect(dialog?.placeholder).toBe("Search links in the conversation")
+  expect(dialog?.options[0]).toEqual({
+    title: "example.com",
+    description: "/guide",
+    value: "https://example.com/guide",
+  })
   expect(dialog?.options.map((option) => option.value)).toEqual([
     "https://example.com/guide",
     "https://example.com/page_(one)",
