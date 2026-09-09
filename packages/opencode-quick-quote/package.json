@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-quick-quote",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Quote paragraphs from the last assistant reply with inline autocomplete.",
   "type": "module",
   "exports": {
@@ -11,7 +11,12 @@
       "default": "./dist/tui.js"
     }
   },
-  "files": ["dist", "tui.js", "README.md", "LICENSE"],
+  "files": [
+    "dist",
+    "tui.js",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -21,7 +26,15 @@
     "prepack": "bun run build && bun run smoke",
     "prepublishOnly": "bun run prepack && bun run typecheck"
   },
-  "keywords": ["opencode", "opencode-plugin", "opencode-tui", "plugin", "quote", "autocomplete", "ai"],
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "opencode-tui",
+    "plugin",
+    "quote",
+    "autocomplete",
+    "ai"
+  ],
   "author": "vimtor",
   "license": "MIT",
   "repository": {
@@ -29,9 +42,14 @@
     "url": "git+https://github.com/vimtor/opencode-plugins.git",
     "directory": "packages/opencode-quick-quote"
   },
-  "bugs": { "url": "https://github.com/vimtor/opencode-plugins/issues" },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-plugins/issues"
+  },
   "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-quick-quote#readme",
-  "publishConfig": { "access": "public", "provenance": true },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "dependencies": {
     "@opencode/plugin": "0.0.0-beta-19296",
     "marked": "17.0.1"
