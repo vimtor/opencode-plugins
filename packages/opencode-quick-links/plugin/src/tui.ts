@@ -74,8 +74,8 @@ export default Plugin.define({
 
       const url = await ctx.ui.dialog.select({
         title: "Quick Links",
-        placeholder: "Search links",
-        options: links.map((link) => ({ title: link.url, value: link.url })),
+        placeholder: "Search links in the conversation",
+        options: links.map((link) => ({ title: link.url.replace(/^https?:\/\//, ""), value: link.url })),
       })
       if (!url) return
       await open(url).catch(() => {
