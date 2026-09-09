@@ -55,6 +55,7 @@
     "open": "^10.1.2"
   },
   "peerDependencies": {
+    "@opentui/core": ">=0.5.10",
     "solid-js": ">=1.9.0"
   },
   "devDependencies": {

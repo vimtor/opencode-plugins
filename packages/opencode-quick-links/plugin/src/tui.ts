@@ -1,4 +1,5 @@
 import { Plugin } from "@opencode/plugin/tui"
+import { TextNodeRenderable } from "@opentui/core"
 import open from "open"
 
 const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi
@@ -77,9 +78,14 @@ export default Plugin.define({
         placeholder: "Search links in the conversation",
         options: links.map((link) => {
           const url = new URL(link.url)
+          const suffix = url.pathname + url.search + url.hash
           return {
-            title: url.host,
-            description: url.pathname + url.search + url.hash,
+            title: url.host + suffix,
+            // The host forwards select options to DialogSelect, including titleView.
+            titleView: () => TextNodeRenderable.fromNodes([
+              TextNodeRenderable.fromString(url.host, { fg: ctx.theme.text.default }),
+              TextNodeRenderable.fromString(suffix, { fg: ctx.theme.text.subdued }),
+            ]),
             value: link.url,
           }
         }),
