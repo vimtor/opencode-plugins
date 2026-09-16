@@ -25,17 +25,23 @@ The plugin scans the active conversation when you open the dialog. It includes H
 
 ## Configure
 
-The plugin does not register a default shortcut. Add one through `cli.json` if wanted:
+No shortcut is assigned by default. Set `options.keybind` on the plugin entry in `cli.json`:
 
 ```json
 {
   "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": ["opencode-quick-links"],
-  "keybinds": {
-    "quick-links.open": "<leader>o"
-  }
+  "plugins": [
+    {
+      "package": "opencode-quick-links",
+      "options": { "keybind": "ctrl+shift+o" }
+    }
+  ]
 }
 ```
+
+Use any OpenCode key sequence, such as `alt+l` or `<leader>o`. Omit `keybind`, or set it to `false` or `"none"`, to disable the shortcut. `/links` and the command palette remain available.
+
+OpenCode's top-level `keybinds` configuration currently accepts built-in command IDs only; configure this plugin's shortcut through `options.keybind` instead.
 
 ## Local Development
 

@@ -13,7 +13,13 @@ test("loads through a local directory as well as npm exports", async () => {
   expect(await Host.load(tui)).toHaveProperty("default", quickLinks)
 })
 
-test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning content", async () => {
+test.each([
+  { label: "no shortcut by default", options: {}, bind: false },
+  { label: "configured shortcut", options: { keybind: "ctrl+shift+o" }, bind: "ctrl+shift+o" },
+  { label: "different shortcut", options: { keybind: "alt+l" }, bind: "alt+l" },
+  { label: "disabled shortcut", options: { keybind: false }, bind: false },
+  { label: "none shortcut", options: { keybind: "none" }, bind: false },
+])("reads and deduplicates conversation links with $label", async ({ options, bind }) => {
   let command: KeymapCommand | undefined
   let dialog: DialogSelectOptions<string> | undefined
   let render!: SlotClaim<"app">["render"]
@@ -21,6 +27,7 @@ test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning c
   let disposed = false
   const messages: ReturnType<Plugin.Context["data"]["session"]["message"]["list"]> = []
   const cleanup = await quickLinks.setup({
+    options,
     keymap: { layer: (get: () => KeymapLayer) => {
       expect(mounted).toBe(true)
       command = get().commands?.[0]
@@ -60,6 +67,7 @@ test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning c
   render({})
   if (!command) throw new Error("Quick Links command was not registered")
   expect(command.id).toBe("quick-links.open")
+  expect(command.bind).toBe(bind)
   expect(command.slash?.name).toBe("links")
   await command.run()
   expect(dialog?.placeholder).toBe("Search links in the conversation")
@@ -75,4 +83,10 @@ test("reads user/assistant text, deduplicates URLs, and ignores tool/reasoning c
   ])
   if (cleanup) await cleanup()
   expect(disposed).toBe(true)
+})
+
+test.each([true, 42, "", "   "])("rejects invalid keybind option %p", (keybind) => {
+  expect(() => quickLinks.setup({ options: { keybind } } as unknown as Plugin.Context)).toThrow(
+    "opencode-quick-links keybind option must be a non-empty string or false",
+  )
 })
