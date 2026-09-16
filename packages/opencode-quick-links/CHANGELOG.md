@@ -1,5 +1,11 @@
 # opencode-quick-links
 
+## 1.1.0
+
+### Minor Changes
+
+- b311243: Add an optional keybind plugin setting for opening Quick Links. Configure or disable the shortcut through plugin options instead of OpenCode's built-in-only keybind overrides.
+
 ## 1.0.1
 
 ### Patch Changes
