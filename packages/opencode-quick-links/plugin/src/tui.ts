@@ -58,6 +58,11 @@ function extractLinks(messages: ReturnType<Plugin.Context["data"]["session"]["me
 export default Plugin.define({
   id: "opencode-quick-links",
   setup(ctx) {
+    const keybind = ctx.options.keybind ?? false
+    if (keybind !== false && (typeof keybind !== "string" || keybind.trim() === "")) {
+      throw new Error("opencode-quick-links keybind option must be a non-empty string or false")
+    }
+
     async function showQuickLinks() {
       const route = ctx.ui.router.current()
       if (route.type !== "session") {
@@ -91,6 +96,7 @@ export default Plugin.define({
           commands: [
             {
               id: "quick-links.open",
+              bind: keybind === "none" ? false : keybind,
               title: "Open session links",
               group: "Plugin",
               palette: true,
@@ -100,7 +106,6 @@ export default Plugin.define({
               }),
             },
           ],
-          bindings: ["quick-links.open"],
         }))
         return null
       },
