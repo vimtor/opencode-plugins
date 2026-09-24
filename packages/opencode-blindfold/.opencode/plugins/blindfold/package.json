@@ -1,0 +1,5 @@
+{
+  "name": "opencode-blindfold-local",
+  "type": "module",
+  "exports": { ".": "./server.ts", "./tui": "./tui.ts" }
+}
