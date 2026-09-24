@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-hide-variants",
+  "version": "0.1.0",
+  "description": "OpenCode plugin that hides unwanted model variants, such as low reasoning effort levels.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "smoke": "bun -e \"import('./dist/server.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 plugin export') })\"",
+    "pack:dry-run": "bun pm pack --dry-run",
+    "prepack": "bun run build && bun run smoke",
+    "prepublishOnly": "bun run prepack && bun run typecheck"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "variants",
+    "reasoning-effort",
+    "models",
+    "ai"
+  ],
+  "author": "vimtor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-plugins.git",
+    "directory": "packages/opencode-hide-variants"
+  },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-plugins/issues"
+  },
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-hide-variants#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.15"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
