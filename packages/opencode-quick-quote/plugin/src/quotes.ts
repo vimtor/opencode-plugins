@@ -29,10 +29,15 @@ export function quoteTrigger(beforeCursor: string) {
   return { row: lines.length, query: line.slice(1).trim(), key: `${lines.length}:${line}` }
 }
 
+/** Fold accents so "spočítaj" matches a search for "spocitaj". */
+function foldAccents(text: string): string {
+  return text.normalize("NFKD").replace(/\p{M}+/gu, "")
+}
+
 export function filterParagraphs(items: readonly string[], query: string): string[] {
-  const words = query.toLocaleLowerCase().split(/\s+/).filter(Boolean)
+  const words = foldAccents(query).toLocaleLowerCase().split(/\s+/).filter(Boolean)
   return items.filter((item) => {
-    const text = item.toLocaleLowerCase()
+    const text = foldAccents(item).toLocaleLowerCase()
     return words.every((word) => text.includes(word))
   })
 }

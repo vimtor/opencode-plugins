@@ -46,3 +46,11 @@ test("filters all search words case-insensitively, retaining message order", () 
   expect(filterParagraphs(items, "")).toEqual(items)
   expect(filterParagraphs(items, "Sunday")).toEqual([])
 })
+
+test("matches diacritic letters with plain ASCII search, both ways", () => {
+  const items = ["Návrh A: Spočítaj celé číslo.", "Žiadny návrh neostal."]
+  expect(filterParagraphs(items, "spocitaj")).toEqual([items[0]])
+  expect(filterParagraphs(items, "na")).toEqual(items)
+  expect(filterParagraphs(items, "žiadny")).toEqual([items[1]])
+  expect(filterParagraphs([items[0]], "cé")).toEqual([items[0]])
+})
