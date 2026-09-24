@@ -6,6 +6,7 @@ My personal plugins for OpenCode V2 (beta).
 
 - [`opencode-postgres`](packages/opencode-postgres/README.md): adds a Postgres Query tool for running SQL against a configured Postgres database.
 - [`opencode-mysql`](packages/opencode-mysql/README.md): adds a MySQL Query tool for running SQL against a configured MySQL 8+ database.
+- [`opencode-blindfold`](packages/opencode-blindfold/README.md): lets agents use secrets you provide without seeing their values.
 - [`opencode-exit-plan`](packages/opencode-exit-plan/README.md): switches from the plan mode to a build agent when you say phrases like "go ahead".
 - [`opencode-hide-variants`](packages/opencode-hide-variants/README.md): hides unwanted model variants globally or per model.
 - [`opencode-keep-going`](packages/opencode-keep-going/README.md): sends a continue prompt when you press Enter on an empty input.
