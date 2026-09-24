@@ -33,8 +33,10 @@ jobs:
           package-manager-cache: false
 
       - name: Update npm
-        # Changesets uses the npm CLI for trusted publishing.
-        run: npm install -g npm@latest
+        # Changesets uses the npm CLI for trusted publishing (npm >= 11.5.1).
+        # npm 12 prints `npm info --json` as an array, which Changesets 2 reads
+        # as "never published" and then tries to republish every package.
+        run: npm install -g npm@11
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
