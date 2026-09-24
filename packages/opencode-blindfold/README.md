@@ -55,18 +55,21 @@ Server plugin options:
     {
       "package": "opencode-blindfold",
       "options": {
-        "env": true,
-        "shellApproval": "ask",
-        "timeout": 600000
+        "shell": { "enabled": true, "approve": true },
+        "codemode": { "enabled": true },
+        "prompt": { "timeout": 600000 }
       }
     }
   ]
 }
 ```
 
-- `env`: set secrets as environment variables for shell commands that name them. Defaults to `true`.
-- `shellApproval`: `"ask"` requires your approval for shell commands that name a secret; `"allow"` runs them without asking. Defaults to `"ask"`.
-- `timeout`: how long to wait for the dialog in milliseconds. Defaults to 10 minutes.
+The values shown are the defaults.
+
+- `shell.enabled`: set secrets as environment variables for shell commands that name them.
+- `shell.approve`: ask for your approval before running shell commands that name a secret.
+- `codemode.enabled`: provide `blindfold.get` in Code Mode.
+- `prompt.timeout`: how long to wait for the dialog, in milliseconds.
 
 ## Limitations
 

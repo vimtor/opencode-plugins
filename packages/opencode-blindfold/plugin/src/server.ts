@@ -24,26 +24,41 @@ function failure(name: string, status: Exclude<Answer["status"], "submitted">) {
   ].join(" ")
 }
 
-type ShellApproval = "ask" | "allow"
-
-type BlindfoldOptions = {
-  env?: boolean
-  shellApproval?: ShellApproval
-  timeout?: number
+type Settings = {
+  shell: { enabled: boolean; approve: boolean }
+  codemode: { enabled: boolean }
+  prompt: { timeout: number }
 }
 
-function getEnv(options: BlindfoldOptions) {
-  if (options.env === undefined) return true
-  if (typeof options.env !== "boolean") throw new Error("opencode-blindfold env option must be a boolean")
-  return options.env
-}
-
-function getShellApproval(options: BlindfoldOptions): ShellApproval {
-  if (options.shellApproval === undefined) return "ask"
-  if (options.shellApproval !== "ask" && options.shellApproval !== "allow") {
-    throw new Error('opencode-blindfold shellApproval option must be "ask" or "allow"')
+function group(options: Record<string, unknown>, key: string) {
+  const value = options[key]
+  if (value === undefined) return {}
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`opencode-blindfold ${key} option must be an object`)
   }
-  return options.shellApproval
+  return value as Record<string, unknown>
+}
+
+function boolean(options: Record<string, unknown>, key: string, name: string, fallback: boolean) {
+  const value = options[name]
+  if (value === undefined) return fallback
+  if (typeof value !== "boolean") throw new Error(`opencode-blindfold ${key}.${name} option must be a boolean`)
+  return value
+}
+
+function getSettings(options: Record<string, unknown>): Settings {
+  const shell = group(options, "shell")
+  const codemode = group(options, "codemode")
+  const prompt = group(options, "prompt")
+  const timeout = prompt.timeout ?? DEFAULT_TIMEOUT
+  if (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0) {
+    throw new Error("opencode-blindfold prompt.timeout option must be a positive number of milliseconds")
+  }
+  return {
+    shell: { enabled: boolean(shell, "shell", "enabled", true), approve: boolean(shell, "shell", "approve", true) },
+    codemode: { enabled: boolean(codemode, "codemode", "enabled", true) },
+    prompt: { timeout },
+  }
 }
 
 // Secret names are environment-variable style, so a word match covers $NAME, ${NAME}, os.environ["NAME"], and so on.
@@ -51,18 +66,12 @@ function mentioned(names: string[], command: string) {
   return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
-function getTimeout(options: BlindfoldOptions) {
-  if (options.timeout === undefined) return DEFAULT_TIMEOUT
-  if (typeof options.timeout !== "number" || !Number.isFinite(options.timeout) || options.timeout <= 0) {
-    throw new Error("opencode-blindfold timeout option must be a positive number of milliseconds")
-  }
-  return options.timeout
-}
-
-function usage(names: string[], env: boolean) {
+function usage(names: string[], settings: Settings) {
   const access = [
-    "Call `tools.blindfold.get({ name })` inside Code Mode to use a value without returning it.",
-    env
+    settings.codemode.enabled
+      ? "Call `tools.blindfold.get({ name })` inside Code Mode to use a value without returning it."
+      : undefined,
+    settings.shell.enabled
       ? [
           "A shell command receives a secret as an environment variable only when the command text mentions its name, and the user may be asked to approve it.",
           'Programs that read variables implicitly need them passed explicitly, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`.',
@@ -79,10 +88,7 @@ function usage(names: string[], env: boolean) {
 export default Plugin.define({
   id: "blindfold",
   async setup(ctx) {
-    const options = ctx.options as BlindfoldOptions
-    const env = getEnv(options)
-    const shellApproval = getShellApproval(options)
-    const timeout = getTimeout(options)
+    const settings = getSettings(ctx.options)
     const redactor = new Redactor()
     const pending = new Map<string, Pending>()
 
@@ -119,7 +125,7 @@ export default Plugin.define({
           resolve(answer)
           void rpc.events.emit("resolved", { requestID }).catch(() => undefined)
         }
-        const timer = setTimeout(() => finish({ status: acknowledged ? "timeout" : "unavailable" }), timeout)
+        const timer = setTimeout(() => finish({ status: acknowledged ? "timeout" : "unavailable" }), settings.prompt.timeout)
         const ackTimer = setTimeout(() => finish({ status: "unavailable" }), ACK_TIMEOUT)
         pending.set(requestID, {
           finish,
@@ -141,7 +147,7 @@ export default Plugin.define({
         name: REQUEST_TOOL,
         description: [
           "Ask the user for a secret value, such as an API token or password, without revealing it to you.",
-          "The value is never returned; use it through `blindfold.get` in Code Mode or as a shell environment variable.",
+          "The value is never returned; the result explains how to use it.",
         ].join(" "),
         input: {
           type: "object",
@@ -170,11 +176,12 @@ export default Plugin.define({
           }
 
           return {
-            content: `Secret ${name} is stored. ${usage(redactor.names(), env)}`,
+            content: `Secret ${name} is stored. ${usage(redactor.names(), settings)}`,
             metadata: { title: `Secret ${name}`, name },
           }
         },
       })
+      if (!settings.codemode.enabled) return
       editor.add({
         name: GET_TOOL,
         description: "Read a stored secret value. Use it directly in code; never return or log it.",
@@ -211,7 +218,7 @@ export default Plugin.define({
       if (redactor.size === 0) return
       event.messages = redactor.value(event.messages)
       event.system = redactor.value(event.system)
-      event.system.push({ type: "text", text: usage(redactor.names(), env) })
+      event.system.push({ type: "text", text: usage(redactor.names(), settings) })
     })
 
     // Last line of defense for requests that bypass the context hook, such as compaction and titles.
@@ -225,9 +232,9 @@ export default Plugin.define({
       event.request = new Request(event.request, { body: redacted, headers })
     })
 
-    if (env) {
+    if (settings.shell.enabled) {
       // Commands can only read secrets they name, so naming one is what triggers approval.
-      if (shellApproval === "ask") {
+      if (settings.shell.approve) {
         await ctx.permission.hook("evaluate", (event) => {
           if (event.action !== "shell" || event.effect === "deny") return
           const names = [...new Set(event.resources.flatMap((command) => mentioned(redactor.names(), command)))]

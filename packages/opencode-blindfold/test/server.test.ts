@@ -57,7 +57,7 @@ test("requests a secret through the TUI without returning its value", async () =
 })
 
 test("fails when the user cancels, no TUI responds, or the request times out", async () => {
-  const { tools, emitted, handlers } = await harness({ timeout: 20 })
+  const { tools, emitted, handlers } = await harness({ prompt: { timeout: 20 } })
   const request = () => tools.get("request")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   const requestID = () => emitted.filter(([event]) => event === "requested").at(-1)![1].requestID
 
@@ -157,12 +157,19 @@ test("asks before shell commands that name a secret", async () => {
   expect(await evaluate({ action: "shell", resources: ["echo $API_TOKEN"], effect: "deny" })).toMatchObject({ effect: "deny" })
 })
 
+test("code mode access can be turned off", async () => {
+  const { tools, store } = await harness({ codemode: { enabled: false } })
+  expect(tools.has("get")).toBe(false)
+  const result = await store()
+  expect(result.content).not.toContain("blindfold.get")
+})
+
 test("shell approval and env injection can be turned off", async () => {
-  const allowed = await harness({ shellApproval: "allow" })
+  const allowed = await harness({ shell: { approve: false } })
   expect(allowed.hooks.has("permission.evaluate")).toBe(false)
   expect(allowed.hooks.has("shell.create.before")).toBe(true)
 
-  const disabled = await harness({ env: false })
+  const disabled = await harness({ shell: { enabled: false } })
   expect(disabled.hooks.has("permission.evaluate")).toBe(false)
   expect(disabled.hooks.has("shell.create.before")).toBe(false)
 })
@@ -176,10 +183,10 @@ test("redacts one-character secrets in raw form only", async () => {
 })
 
 test("rejects invalid options and empty secrets", async () => {
-  await expect(harness({ env: "yes" })).rejects.toThrow("env option")
-  await expect(harness({ timeout: 0 })).rejects.toThrow("timeout option")
-  await expect(harness({ shellApproval: "never" })).rejects.toThrow("shellApproval option")
-  const { tools, emitted, handlers } = await harness({ timeout: 20 })
+  await expect(harness({ shell: { enabled: "yes" } })).rejects.toThrow("shell.enabled option")
+  await expect(harness({ prompt: { timeout: 0 } })).rejects.toThrow("prompt.timeout option")
+  await expect(harness({ shell: true })).rejects.toThrow("shell option must be an object")
+  const { tools, emitted, handlers } = await harness({ prompt: { timeout: 20 } })
   const result = tools.get("request")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   await Bun.sleep(0)
   expect(await handlers().submit({ requestID: emitted[0][1].requestID, value: "" })).toEqual({ accepted: false })
