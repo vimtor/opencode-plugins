@@ -10,7 +10,7 @@ Requires OpenCode V2 (beta) and the TUI.
 2. The TUI opens a dialog where you paste the value. The value goes to the plugin and never to the agent.
 3. The agent uses the secret without reading it:
    - In Code Mode, `tools.blindfold.get({ name: "GITHUB_TOKEN" })` returns the value to the running code only.
-   - Shell commands receive it as an environment variable, e.g. `$GITHUB_TOKEN`.
+   - A shell command receives it as an environment variable only when the command names it, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`. OpenCode asks you to approve such commands. Commands that don't name it, such as `printenv`, never get the value.
 4. The plugin replaces the value, and its JSON, URL, base64, and hex encodings, with `[REDACTED:GITHUB_TOKEN]` in:
    - tool results and errors
    - every message and system prompt sent to the model
@@ -56,6 +56,7 @@ Server plugin options:
       "package": "opencode-blindfold",
       "options": {
         "env": true,
+        "shellApproval": "ask",
         "timeout": 600000
       }
     }
@@ -63,12 +64,13 @@ Server plugin options:
 }
 ```
 
-- `env`: set secrets as shell environment variables. Defaults to `true`.
+- `env`: set secrets as environment variables for shell commands that name them. Defaults to `true`.
+- `shellApproval`: `"ask"` requires your approval for shell commands that name a secret; `"allow"` runs them without asking. Defaults to `"ask"`.
 - `timeout`: how long to wait for the dialog in milliseconds. Defaults to 10 minutes.
 
 ## Limitations
 
-Redaction guards against accidental exposure, not a hostile agent. An agent can transform a value in ways redaction cannot recognize, such as reversing it or printing part of it, or send it to a server it controls. Live shell output shown in the TUI while a command runs is not redacted; the final result is.
+Redaction guards against accidental exposure, not a hostile agent. Once you approve a shell command, that program has the real value and can send it anywhere. An agent can transform a value in ways redaction cannot recognize, such as reversing it or printing part of it, or send it to a server it controls. Live shell output shown in the TUI while a command runs is not redacted; the final result is.
 
 ## Local Development
 

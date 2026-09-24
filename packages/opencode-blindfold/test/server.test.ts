@@ -32,6 +32,7 @@ async function harness(options: Record<string, unknown> = {}) {
     },
     session: { hook: async (name: string, hook: Hook) => { hooks.set(`session.${name}`, hook) } },
     shell: { hook: async (name: string, hook: Hook) => { hooks.set(`shell.${name}`, hook) } },
+    permission: { hook: async (name: string, hook: Hook) => { hooks.set(`permission.${name}`, hook) } },
   } as unknown as Plugin.Context)
 
   async function store(value = SECRET, name = "API_TOKEN") {
@@ -126,14 +127,43 @@ test("redacts commonly encoded values and prefers the longest overlapping secret
   expect(event.result.metadata.untouched).toBe(untouched)
 })
 
-test("exposes secrets to shell commands unless disabled", async () => {
-  const enabled = await harness()
-  await enabled.store()
-  const shell = { env: {} as Record<string, string> }
-  await enabled.hooks.get("shell.create.before")!(shell)
-  expect(shell.env).toEqual({ API_TOKEN: SECRET })
+test("exposes secrets only to shell commands that name them", async () => {
+  const { hooks, store } = await harness()
+  await store()
+  await store("other-secret", "OTHER_TOKEN")
+  const env = async (command: string) => {
+    const shell = { command, env: {} as Record<string, string> }
+    await hooks.get("shell.create.before")!(shell)
+    return shell.env
+  }
+  expect(await env('curl -H "Authorization: Bearer $API_TOKEN" https://example.com')).toEqual({ API_TOKEN: SECRET })
+  expect(await env("python -c 'import os; print(os.environ[\"API_TOKEN\"])'")).toEqual({ API_TOKEN: SECRET })
+  expect(await env("printenv")).toEqual({})
+  expect(await env("echo $MY_API_TOKEN $API_TOKEN_2")).toEqual({})
+})
+
+test("asks before shell commands that name a secret", async () => {
+  const { hooks, store } = await harness()
+  await store()
+  const evaluate = async (event: Record<string, unknown>) => {
+    const permission = { effect: "allow", ...event }
+    await hooks.get("permission.evaluate")!(permission)
+    return permission
+  }
+  expect(await evaluate({ action: "shell", resources: ["ls", "echo ${API_TOKEN}"] }))
+    .toMatchObject({ effect: "ask", message: "This command can read API_TOKEN" })
+  expect(await evaluate({ action: "shell", resources: ["printenv"] })).toMatchObject({ effect: "allow" })
+  expect(await evaluate({ action: "read", resources: ["API_TOKEN"] })).toMatchObject({ effect: "allow" })
+  expect(await evaluate({ action: "shell", resources: ["echo $API_TOKEN"], effect: "deny" })).toMatchObject({ effect: "deny" })
+})
+
+test("shell approval and env injection can be turned off", async () => {
+  const allowed = await harness({ shellApproval: "allow" })
+  expect(allowed.hooks.has("permission.evaluate")).toBe(false)
+  expect(allowed.hooks.has("shell.create.before")).toBe(true)
 
   const disabled = await harness({ env: false })
+  expect(disabled.hooks.has("permission.evaluate")).toBe(false)
   expect(disabled.hooks.has("shell.create.before")).toBe(false)
 })
 
@@ -148,6 +178,7 @@ test("redacts one-character secrets in raw form only", async () => {
 test("rejects invalid options and empty secrets", async () => {
   await expect(harness({ env: "yes" })).rejects.toThrow("env option")
   await expect(harness({ timeout: 0 })).rejects.toThrow("timeout option")
+  await expect(harness({ shellApproval: "never" })).rejects.toThrow("shellApproval option")
   const { tools, emitted, handlers } = await harness({ timeout: 20 })
   const result = tools.get("request")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   await Bun.sleep(0)

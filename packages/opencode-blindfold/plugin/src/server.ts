@@ -24,8 +24,11 @@ function failure(name: string, status: Exclude<Answer["status"], "submitted">) {
   ].join(" ")
 }
 
+type ShellApproval = "ask" | "allow"
+
 type BlindfoldOptions = {
   env?: boolean
+  shellApproval?: ShellApproval
   timeout?: number
 }
 
@@ -33,6 +36,19 @@ function getEnv(options: BlindfoldOptions) {
   if (options.env === undefined) return true
   if (typeof options.env !== "boolean") throw new Error("opencode-blindfold env option must be a boolean")
   return options.env
+}
+
+function getShellApproval(options: BlindfoldOptions): ShellApproval {
+  if (options.shellApproval === undefined) return "ask"
+  if (options.shellApproval !== "ask" && options.shellApproval !== "allow") {
+    throw new Error('opencode-blindfold shellApproval option must be "ask" or "allow"')
+  }
+  return options.shellApproval
+}
+
+// Secret names are environment-variable style, so a word match covers $NAME, ${NAME}, os.environ["NAME"], and so on.
+function mentioned(names: string[], command: string) {
+  return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
 function getTimeout(options: BlindfoldOptions) {
@@ -46,7 +62,12 @@ function getTimeout(options: BlindfoldOptions) {
 function usage(names: string[], env: boolean) {
   const access = [
     "Call `tools.blindfold.get({ name })` inside Code Mode to use a value without returning it.",
-    env ? "Shell commands receive each secret as an environment variable with the same name, e.g. `$NAME`." : undefined,
+    env
+      ? [
+          "A shell command receives a secret as an environment variable only when the command text mentions its name, and the user may be asked to approve it.",
+          'Programs that read variables implicitly need them passed explicitly, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`.',
+        ].join(" ")
+      : undefined,
   ].filter(Boolean)
   return [
     `Blindfold secrets available: ${names.join(", ")}.`,
@@ -60,6 +81,7 @@ export default Plugin.define({
   async setup(ctx) {
     const options = ctx.options as BlindfoldOptions
     const env = getEnv(options)
+    const shellApproval = getShellApproval(options)
     const timeout = getTimeout(options)
     const redactor = new Redactor()
     const pending = new Map<string, Pending>()
@@ -204,8 +226,18 @@ export default Plugin.define({
     })
 
     if (env) {
+      // Commands can only read secrets they name, so naming one is what triggers approval.
+      if (shellApproval === "ask") {
+        await ctx.permission.hook("evaluate", (event) => {
+          if (event.action !== "shell" || event.effect === "deny") return
+          const names = [...new Set(event.resources.flatMap((command) => mentioned(redactor.names(), command)))]
+          if (names.length === 0) return
+          event.effect = "ask"
+          event.message = `This command can read ${names.join(", ")}`
+        })
+      }
       await ctx.shell.hook("create.before", (event) => {
-        for (const [name, value] of redactor.entries()) event.env[name] = value
+        for (const name of mentioned(redactor.names(), event.command)) event.env[name] = redactor.get(name)
       })
     }
 
