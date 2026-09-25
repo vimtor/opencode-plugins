@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-blindfold",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenCode plugin that lets agents use secrets the user provides without seeing their values.",
   "type": "module",
   "main": "./dist/server.js",
