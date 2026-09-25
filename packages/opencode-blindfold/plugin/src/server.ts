@@ -5,7 +5,6 @@ import { Redactor } from "./redact.js"
 import { Blindfold } from "./rpc.js"
 
 const NAMESPACE = "blindfold"
-const REQUEST_TOOL = "request"
 const GET_TOOL = "get"
 const GET_TOOL_IDS = new Set([`${NAMESPACE}_${GET_TOOL}`, `${NAMESPACE}.${GET_TOOL}`])
 const NAME_PATTERN = "^[A-Z_][A-Z0-9_]*$"
@@ -71,17 +70,12 @@ function mentioned(names: string[], command: string) {
 }
 
 function instructions(settings: Settings) {
-  const how = settings.codemode.enabled
-    ? "use Blindfold from Code Mode: `tools.blindfold.get({ name, reason })` asks the user privately if the secret isn't stored yet and returns it to the running code only."
-    : "call the `blindfold_request` tool so the user can enter it privately."
+  const call = settings.codemode.enabled ? "`tools.blindfold.get({ name, reason })` in Code Mode" : "the `blindfold_get` tool"
   return [
-    `When a task needs a secret such as an API key, token, or password, ${how}`,
-    settings.codemode.enabled && settings.shell.enabled
-      ? "If only shell commands need it, call `tools.blindfold.request({ name, reason })` instead."
-      : undefined,
+    `When a task needs a secret such as an API key, token, or password, call ${call}; it asks the user privately if the secret isn't stored yet.`,
     "Never ask the user to paste secrets into the chat.",
     "Never print, return, or write secret values; they are redacted from tool output.",
-  ].filter(Boolean).join(" ")
+  ].join(" ")
 }
 
 function shellUsage(settings: Settings) {
@@ -92,19 +86,15 @@ function shellUsage(settings: Settings) {
   ]
 }
 
-function requestDescription(settings: Settings) {
+function getDescription(settings: Settings) {
   return [
-    "Ask the user for a secret value, such as an API token or password, without revealing it to you.",
-    "The value is never returned.",
+    "Get a secret such as an API token or password. If it isn't stored yet, the user is asked to enter it privately.",
+    settings.codemode.enabled
+      ? "Returns the value to the running code only; use it directly, e.g. in a fetch header."
+      : "The value is never returned to you.",
     ...shellUsage(settings),
-    settings.codemode.enabled ? "When code needs the value, use `tools.blindfold.get({ name, reason })` instead." : undefined,
   ].filter(Boolean).join(" ")
 }
-
-const GET_DESCRIPTION = [
-  "Return a secret's value to the running code, asking the user for it first if it isn't stored.",
-  "Use it directly in code, e.g. in a fetch header.",
-].join(" ")
 
 const NAME_INPUT = {
   type: "string",
@@ -182,49 +172,32 @@ export default Plugin.define({
         description: "Secrets provided by the user without revealing their values to the agent.",
       })
       editor.add({
-        name: REQUEST_TOOL,
-        description: requestDescription(settings),
-        input: {
-          type: "object",
-          properties: {
-            name: NAME_INPUT,
-            reason: { type: "string", minLength: 1, description: "Why the secret is needed, shown to the user" },
-            replace: { type: "boolean", description: "Ask again even if the secret is already stored" },
-          },
-          required: ["name", "reason"],
-          additionalProperties: false,
-        },
-        // Code Mode is preferred when enabled; otherwise the agent needs a regular tool to request secrets at all.
-        options: settings.codemode.enabled
-          ? { namespace: NAMESPACE, codemode: true, pinned: true }
-          : { namespace: NAMESPACE, codemode: false },
-        async execute(input, context) {
-          const { name, reason, replace } = input as { name: string; reason: string; replace?: boolean }
-          await context.progress({ title: `Secret ${name}` })
-          await obtain({ sessionID: context.sessionID, name, reason, replace })
-          return {
-            content: `Secret ${name} is stored. Blindfold secrets available: ${redactor.names().join(", ")}.`,
-            metadata: { title: `Secret ${name}`, name },
-          }
-        },
-      })
-      if (!settings.codemode.enabled) return
-      editor.add({
         name: GET_TOOL,
-        description: GET_DESCRIPTION,
+        description: getDescription(settings),
         input: {
           type: "object",
           properties: {
             name: NAME_INPUT,
-            reason: { type: "string", minLength: 1, description: "Why the secret is needed, shown to the user if it must be requested" },
+            reason: { type: "string", minLength: 1, description: "Why the secret is needed, shown to the user if it must be entered" },
+            replace: { type: "boolean", description: "Ask the user again even if the secret is already stored" },
           },
           required: ["name"],
           additionalProperties: false,
         },
-        options: { namespace: NAMESPACE, codemode: true, pinned: true },
+        // In Code Mode the value reaches only the running code. As a regular tool the result enters the chat,
+        // so it confirms the secret is stored without returning it.
+        options: settings.codemode.enabled
+          ? { namespace: NAMESPACE, codemode: true, pinned: true }
+          : { namespace: NAMESPACE, codemode: false },
         async execute(input, context) {
-          const { name, reason } = input as { name: string; reason?: string }
-          return { content: await obtain({ sessionID: context.sessionID, name, reason: reason ?? `The agent needs ${name}.` }) }
+          const { name, reason, replace } = input as { name: string; reason?: string; replace?: boolean }
+          await context.progress({ title: `Secret ${name}` })
+          const value = await obtain({ sessionID: context.sessionID, name, reason: reason ?? `The agent needs ${name}.`, replace })
+          if (settings.codemode.enabled) return { content: value }
+          return {
+            content: `Secret ${name} is stored. Blindfold secrets available: ${redactor.names().join(", ")}.`,
+            metadata: { title: `Secret ${name}`, name },
+          }
         },
       })
     })

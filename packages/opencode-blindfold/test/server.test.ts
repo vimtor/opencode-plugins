@@ -36,7 +36,7 @@ async function harness(options: Record<string, unknown> = {}) {
   } as unknown as Plugin.Context)
 
   async function store(value = SECRET, name = "API_TOKEN") {
-    const result = tools.get("request")!.execute({ name, reason: "Call the API" }, context)
+    const result = tools.get("get")!.execute({ name, reason: "Call the API" }, context)
     await Bun.sleep(0)
     const [, data] = emitted.filter(([event]) => event === "requested").at(-1)!
     await handlers.submit({ requestID: data.requestID, value })
@@ -46,20 +46,26 @@ async function harness(options: Record<string, unknown> = {}) {
   return { tools, hooks, emitted, handlers: () => handlers, store, cleanup }
 }
 
-test("requests a secret through the TUI without returning its value", async () => {
-  const { tools, emitted, store } = await harness()
+test("registers a single get tool, in Code Mode when enabled", async () => {
+  const { tools } = await harness()
+  expect([...tools.keys()]).toEqual(["get"])
+  const get = tools.get("get")!
+  expect(get.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
+  expect(get.description).toContain("the user is asked to enter it privately")
+  expect(get.description).toContain("running code only")
+  expect(get.description).toContain('GH_TOKEN="$GITHUB_TOKEN"')
+  expect(get.description).toContain("The user must approve each such command.")
+})
+
+test("as a regular tool, get stores the secret without returning it", async () => {
+  const { tools, emitted, store } = await harness({ codemode: { enabled: false } })
+  expect([...tools.keys()]).toEqual(["get"])
+  expect(tools.get("get")!.options).toEqual({ namespace: "blindfold", codemode: false })
+  expect(tools.get("get")!.description).toContain("never returned to you")
   const result = await store()
   expect(emitted[0]).toEqual(["requested", expect.objectContaining({ sessionID: "ses_test", name: "API_TOKEN", reason: "Call the API" })])
   expect(emitted[1]).toEqual(["resolved", { requestID: emitted[0][1].requestID }])
-  expect(JSON.stringify(result)).not.toContain(SECRET)
-  expect(tools.get("request")!.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
-  expect(tools.get("request")!.description).toContain('GH_TOKEN="$GITHUB_TOKEN"')
-  expect(tools.get("request")!.description).toContain("tools.blindfold.get")
-  expect(tools.get("request")!.description).toContain("The user must approve each such command.")
-  expect(tools.get("get")!.description).toContain("asking the user for it first")
-  expect(JSON.stringify(result)).not.toContain("GH_TOKEN")
-  expect(tools.get("get")!.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
-  expect(await tools.get("get")!.execute({ name: "API_TOKEN" }, context)).toEqual({ content: SECRET })
+  expect(result.content).toBe("Secret API_TOKEN is stored. Blindfold secrets available: API_TOKEN.")
 })
 
 test("adds the same system instruction before and after secrets are stored", async () => {
@@ -77,7 +83,7 @@ test("adds the same system instruction before and after secrets are stored", asy
   expect(await system(hooks)).toBe(before)
 
   const direct = await harness({ codemode: { enabled: false } })
-  expect(await system(direct.hooks)).toContain("`blindfold_request` tool")
+  expect(await system(direct.hooks)).toContain("the `blindfold_get` tool")
 })
 
 test("get asks the user for a missing secret from Code Mode", async () => {
@@ -90,11 +96,18 @@ test("get asks the user for a missing secret from Code Mode", async () => {
   expect(await value).toEqual({ content: SECRET })
   expect(await tools.get("get")!.execute({ name: "API_TOKEN" }, context)).toEqual({ content: SECRET })
   expect(emitted.filter(([event]) => event === "requested")).toHaveLength(1)
+
+  const replaced = tools.get("get")!.execute({ name: "API_TOKEN", replace: true }, context)
+  await Bun.sleep(0)
+  const [, again] = emitted.filter(([event]) => event === "requested").at(-1)!
+  expect(again.reason).toBe("The agent needs API_TOKEN.")
+  await handlers().submit({ requestID: again.requestID, value: "new-secret" })
+  expect(await replaced).toEqual({ content: "new-secret" })
 })
 
 test("fails when the user cancels, no TUI responds, or the request times out", async () => {
   const { tools, emitted, handlers } = await harness({ prompt: { timeout: 20 } })
-  const request = () => tools.get("request")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
+  const request = () => tools.get("get")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   const requestID = () => emitted.filter(([event]) => event === "requested").at(-1)![1].requestID
 
   const cancelled = request()
@@ -109,8 +122,6 @@ test("fails when the user cancels, no TUI responds, or the request times out", a
   expect(await handlers().ack({ requestID: requestID() })).toEqual({ accepted: true })
   await expect(acknowledged).rejects.toThrow("Timed out waiting")
   expect(await handlers().ack({ requestID: requestID() })).toEqual({ accepted: false })
-
-  await expect(tools.get("get")!.execute({ name: "API_TOKEN" }, context)).rejects.toThrow("No OpenCode TUI with opencode-blindfold responded")
 })
 
 test("redacts tool results, errors, model context, and provider requests", async () => {
@@ -193,25 +204,16 @@ test("asks before shell commands that name a secret", async () => {
   expect(await evaluate({ action: "shell", resources: ["echo $API_TOKEN"], effect: "deny" })).toMatchObject({ effect: "deny" })
 })
 
-test("code mode access can be turned off", async () => {
-  const { tools, store } = await harness({ codemode: { enabled: false } })
-  expect(tools.has("get")).toBe(false)
-  expect(tools.get("request")!.options).toEqual({ namespace: "blindfold", codemode: false })
-  expect(tools.get("request")!.description).not.toContain("blindfold.get")
-  const result = await store()
-  expect(result.content).not.toContain("blindfold.get")
-})
-
 test("shell approval and env injection can be turned off", async () => {
   const allowed = await harness({ shell: { approve: false } })
   expect(allowed.hooks.has("permission.evaluate")).toBe(false)
-  expect(allowed.tools.get("request")!.description).not.toContain("approve")
+  expect(allowed.tools.get("get")!.description).not.toContain("approve")
   expect(allowed.hooks.has("shell.create.before")).toBe(true)
 
   const disabled = await harness({ shell: { enabled: false } })
   expect(disabled.hooks.has("permission.evaluate")).toBe(false)
   expect(disabled.hooks.has("shell.create.before")).toBe(false)
-  expect(disabled.tools.get("request")!.description).not.toContain("Shell")
+  expect(disabled.tools.get("get")!.description).not.toContain("Shell")
 })
 
 test("redacts one-character secrets in raw form only", async () => {
@@ -228,7 +230,7 @@ test("rejects invalid options and empty secrets", async () => {
   await expect(harness({ shell: true })).rejects.toThrow("shell option must be an object")
   await expect(harness({ shell: { enabled: false }, codemode: { enabled: false } })).rejects.toThrow("secrets cannot be used")
   const { tools, emitted, handlers } = await harness({ prompt: { timeout: 20 } })
-  const result = tools.get("request")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
+  const result = tools.get("get")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   await Bun.sleep(0)
   expect(await handlers().submit({ requestID: emitted[0][1].requestID, value: "" })).toEqual({ accepted: false })
   await expect(result).rejects.toThrow("API_TOKEN")
