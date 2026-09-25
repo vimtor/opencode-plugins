@@ -55,6 +55,9 @@ test("requests a secret through the TUI without returning its value", async () =
   expect(tools.get("request")!.options).toEqual({ namespace: "blindfold", codemode: false })
   expect(tools.get("request")!.description).toContain('GH_TOKEN="$GITHUB_TOKEN"')
   expect(tools.get("request")!.description).toContain("tools.blindfold.get")
+  expect(tools.get("request")!.description).toContain("The user must approve each such command.")
+  expect(tools.get("get")!.description).toContain("blindfold_request")
+  expect(JSON.stringify(result)).not.toContain("GH_TOKEN")
   expect(tools.get("get")!.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
   expect(await tools.get("get")!.execute({ name: "API_TOKEN" }, context)).toEqual({ content: SECRET })
 })
@@ -180,6 +183,7 @@ test("code mode access can be turned off", async () => {
 test("shell approval and env injection can be turned off", async () => {
   const allowed = await harness({ shell: { approve: false } })
   expect(allowed.hooks.has("permission.evaluate")).toBe(false)
+  expect(allowed.tools.get("request")!.description).not.toContain("approve")
   expect(allowed.hooks.has("shell.create.before")).toBe(true)
 
   const disabled = await harness({ shell: { enabled: false } })
@@ -200,6 +204,7 @@ test("rejects invalid options and empty secrets", async () => {
   await expect(harness({ shell: { enabled: "yes" } })).rejects.toThrow("shell.enabled option")
   await expect(harness({ prompt: { timeout: 0 } })).rejects.toThrow("prompt.timeout option")
   await expect(harness({ shell: true })).rejects.toThrow("shell option must be an object")
+  await expect(harness({ shell: { enabled: false }, codemode: { enabled: false } })).rejects.toThrow("secrets cannot be used")
   const { tools, emitted, handlers } = await harness({ prompt: { timeout: 20 } })
   const result = tools.get("request")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   await Bun.sleep(0)

@@ -54,11 +54,15 @@ function getSettings(options: Record<string, unknown>): Settings {
   if (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0) {
     throw new Error("opencode-blindfold prompt.timeout option must be a positive number of milliseconds")
   }
-  return {
+  const settings = {
     shell: { enabled: boolean(shell, "shell", "enabled", true), approve: boolean(shell, "shell", "approve", true) },
     codemode: { enabled: boolean(codemode, "codemode", "enabled", true) },
     prompt: { timeout },
   }
+  if (!settings.shell.enabled && !settings.codemode.enabled) {
+    throw new Error("opencode-blindfold needs shell.enabled or codemode.enabled, otherwise secrets cannot be used")
+  }
+  return settings
 }
 
 // Secret names are environment-variable style, so a word match covers $NAME, ${NAME}, os.environ["NAME"], and so on.
@@ -71,23 +75,26 @@ const DISCOVERY = [
   "Never ask the user to paste secrets into the chat.",
 ].join(" ")
 
-function usage(names: string[], settings: Settings) {
-  const access = [
-    settings.codemode.enabled
-      ? "Call `tools.blindfold.get({ name })` inside Code Mode to use a value without returning it."
-      : undefined,
-    settings.shell.enabled
-      ? [
-          "A shell command receives a secret as an environment variable only when the command text mentions its name, and the user may be asked to approve it.",
-          'Programs that read variables implicitly need them passed explicitly, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`.',
-        ].join(" ")
-      : undefined,
-  ].filter(Boolean)
+// How to use secrets lives in the tool descriptions; this only lists what is stored.
+function usage(names: string[]) {
   return [
     `Blindfold secrets available: ${names.join(", ")}.`,
-    ...access,
     "Never print, return, or write secret values; they are redacted from tool output.",
   ].join(" ")
+}
+
+function requestDescription(settings: Settings) {
+  const shell = [
+    "Shell commands receive it as an environment variable only when the command names it; pass it explicitly to programs that expect another variable, e.g. `GH_TOKEN=\"$GITHUB_TOKEN\" gh api user`.",
+    settings.shell.approve ? "The user must approve each such command." : undefined,
+  ]
+  return [
+    "Ask the user for a secret value, such as an API token or password, without revealing it to you.",
+    "The value is never returned.",
+    ...(settings.shell.enabled ? shell : []),
+    settings.codemode.enabled ? "In Code Mode, `tools.blindfold.get({ name })` returns it to the running code only." : undefined,
+    "Output containing the value is redacted.",
+  ].filter(Boolean).join(" ")
 }
 
 export default Plugin.define({
@@ -150,15 +157,7 @@ export default Plugin.define({
       })
       editor.add({
         name: REQUEST_TOOL,
-        description: [
-          "Ask the user for a secret value, such as an API token or password, without revealing it to you.",
-          "The value is never returned.",
-          settings.shell.enabled
-            ? 'Shell commands receive it as an environment variable only when the command names it, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`, and the user may be asked to approve the command.'
-            : undefined,
-          settings.codemode.enabled ? "In Code Mode, `tools.blindfold.get({ name })` returns it to the running code only." : undefined,
-          "Output containing the value is redacted.",
-        ].filter(Boolean).join(" "),
+        description: requestDescription(settings),
         input: {
           type: "object",
           properties: {
@@ -186,7 +185,7 @@ export default Plugin.define({
           }
 
           return {
-            content: `Secret ${name} is stored. ${usage(redactor.names(), settings)}`,
+            content: `Secret ${name} is stored. ${usage(redactor.names())}`,
             metadata: { title: `Secret ${name}`, name },
           }
         },
@@ -194,7 +193,8 @@ export default Plugin.define({
       if (!settings.codemode.enabled) return
       editor.add({
         name: GET_TOOL,
-        description: "Read a stored secret value. Use it directly in code; never return or log it.",
+        description:
+          "Read a stored secret value. Request the secret with `blindfold_request` first. Use it directly in code; never return or log it.",
         input: {
           type: "object",
           properties: { name: { type: "string", pattern: NAME_PATTERN } },
@@ -231,7 +231,7 @@ export default Plugin.define({
       }
       event.messages = redactor.value(event.messages)
       event.system = redactor.value(event.system)
-      event.system.push({ type: "text", text: `${DISCOVERY} ${usage(redactor.names(), settings)}` })
+      event.system.push({ type: "text", text: `${DISCOVERY} ${usage(redactor.names())}` })
     })
 
     // Last line of defense for requests that bypass the context hook, such as compaction and titles.
