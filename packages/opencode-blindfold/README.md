@@ -68,7 +68,7 @@ The values shown are the defaults.
 
 - `shell.enabled`: set secrets as environment variables for shell commands that name them.
 - `shell.approve`: ask for your approval before running shell commands that name a secret.
-- `codemode.enabled`: provide `blindfold.get` in Code Mode.
+- `codemode.enabled`: provide `blindfold.get` in Code Mode. At least one of `shell.enabled` and `codemode.enabled` must be `true`.
 - `prompt.timeout`: how long to wait for the dialog, in milliseconds.
 
 ## Limitations
