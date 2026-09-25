@@ -6,10 +6,12 @@ Requires OpenCode V2 (beta) and the TUI.
 
 ## How it works
 
-1. The agent calls `blindfold_request` with a name, such as `GITHUB_TOKEN`, and a reason.
-2. The TUI opens a dialog where you paste the value. The value goes to the plugin and never to the agent.
+1. When a task needs a secret, the agent calls `blindfold.get` with a name, such as `GITHUB_TOKEN`, and a reason. If the secret isn't stored yet, you're asked for it. The plugin's system instructions tell the agent to do this instead of asking you to paste secrets into the chat.
+   - In Code Mode (preferred), `tools.blindfold.get({ name, reason })` returns the value to the running code only.
+   - With Code Mode disabled, `blindfold_get` is a regular tool that stores the secret and never returns the value.
+2. The TUI opens a dialog where you paste the value. The value goes to the plugin and never to the agent. If you don't answer within 10 minutes, the request fails.
 3. The agent uses the secret without reading it:
-   - In Code Mode, `tools.blindfold.get({ name: "GITHUB_TOKEN" })` returns the value to the running code only.
+   - In Code Mode, through the value `tools.blindfold.get` returns, e.g. in a `fetch` header.
    - A shell command receives it as an environment variable only when the command names it, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`. OpenCode asks you to approve such commands. Commands that don't name it, such as `printenv`, never get the value.
 4. The plugin replaces the value, and its JSON, URL, base64, and hex encodings, with `[REDACTED:GITHUB_TOKEN]` in:
    - tool results and errors
@@ -56,8 +58,7 @@ Server plugin options:
       "package": "opencode-blindfold",
       "options": {
         "shell": { "enabled": true, "approve": true },
-        "codemode": { "enabled": true },
-        "prompt": { "timeout": 600000 }
+        "codemode": { "enabled": true }
       }
     }
   ]
@@ -68,8 +69,7 @@ The values shown are the defaults.
 
 - `shell.enabled`: set secrets as environment variables for shell commands that name them.
 - `shell.approve`: ask for your approval before running shell commands that name a secret.
-- `codemode.enabled`: provide `blindfold.get` in Code Mode.
-- `prompt.timeout`: how long to wait for the dialog, in milliseconds.
+- `codemode.enabled`: provide `blindfold.get` in Code Mode. When `false`, it's a regular tool that never returns the value. At least one of `shell.enabled` and `codemode.enabled` must be `true`.
 
 ## Limitations
 

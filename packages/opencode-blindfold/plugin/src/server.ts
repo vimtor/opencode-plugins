@@ -5,11 +5,10 @@ import { Redactor } from "./redact.js"
 import { Blindfold } from "./rpc.js"
 
 const NAMESPACE = "blindfold"
-const REQUEST_TOOL = "request"
 const GET_TOOL = "get"
 const GET_TOOL_IDS = new Set([`${NAMESPACE}_${GET_TOOL}`, `${NAMESPACE}.${GET_TOOL}`])
 const NAME_PATTERN = "^[A-Z_][A-Z0-9_]*$"
-const DEFAULT_TIMEOUT = 10 * 60_000
+const PROMPT_TIMEOUT = 10 * 60_000
 const ACK_TIMEOUT = 5_000
 
 type Answer = { status: "submitted"; value: string } | { status: "cancelled" | "timeout" | "unavailable" }
@@ -27,7 +26,6 @@ function failure(name: string, status: Exclude<Answer["status"], "submitted">) {
 type Settings = {
   shell: { enabled: boolean; approve: boolean }
   codemode: { enabled: boolean }
-  prompt: { timeout: number }
 }
 
 function group(options: Record<string, unknown>, key: string) {
@@ -49,16 +47,14 @@ function boolean(options: Record<string, unknown>, key: string, name: string, fa
 function getSettings(options: Record<string, unknown>): Settings {
   const shell = group(options, "shell")
   const codemode = group(options, "codemode")
-  const prompt = group(options, "prompt")
-  const timeout = prompt.timeout ?? DEFAULT_TIMEOUT
-  if (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0) {
-    throw new Error("opencode-blindfold prompt.timeout option must be a positive number of milliseconds")
-  }
-  return {
+  const settings = {
     shell: { enabled: boolean(shell, "shell", "enabled", true), approve: boolean(shell, "shell", "approve", true) },
     codemode: { enabled: boolean(codemode, "codemode", "enabled", true) },
-    prompt: { timeout },
   }
+  if (!settings.shell.enabled && !settings.codemode.enabled) {
+    throw new Error("opencode-blindfold needs shell.enabled or codemode.enabled, otherwise secrets cannot be used")
+  }
+  return settings
 }
 
 // Secret names are environment-variable style, so a word match covers $NAME, ${NAME}, os.environ["NAME"], and so on.
@@ -66,24 +62,38 @@ function mentioned(names: string[], command: string) {
   return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
-function usage(names: string[], settings: Settings) {
-  const access = [
-    settings.codemode.enabled
-      ? "Call `tools.blindfold.get({ name })` inside Code Mode to use a value without returning it."
-      : undefined,
-    settings.shell.enabled
-      ? [
-          "A shell command receives a secret as an environment variable only when the command text mentions its name, and the user may be asked to approve it.",
-          'Programs that read variables implicitly need them passed explicitly, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`.',
-        ].join(" ")
-      : undefined,
-  ].filter(Boolean)
+function instructions(settings: Settings) {
+  const call = settings.codemode.enabled ? "`tools.blindfold.get({ name, reason })` in Code Mode" : "the `blindfold_get` tool"
   return [
-    `Blindfold secrets available: ${names.join(", ")}.`,
-    ...access,
+    `When a task needs a secret such as an API key, token, or password, call ${call}; it asks the user privately if the secret isn't stored yet.`,
+    "Never ask the user to paste secrets into the chat.",
     "Never print, return, or write secret values; they are redacted from tool output.",
   ].join(" ")
 }
+
+function shellUsage(settings: Settings) {
+  if (!settings.shell.enabled) return []
+  return [
+    "Shell commands receive it as an environment variable only when the command names it; pass it explicitly to programs that expect another variable, e.g. `GH_TOKEN=\"$GITHUB_TOKEN\" gh api user`.",
+    settings.shell.approve ? "The user must approve each such command." : undefined,
+  ]
+}
+
+function getDescription(settings: Settings) {
+  return [
+    "Get a secret such as an API token or password. If it isn't stored yet, the user is asked to enter it privately.",
+    settings.codemode.enabled
+      ? "Returns the value to the running code only; use it directly, e.g. in a fetch header."
+      : "The value is never returned to you.",
+    ...shellUsage(settings),
+  ].filter(Boolean).join(" ")
+}
+
+const NAME_INPUT = {
+  type: "string",
+  pattern: NAME_PATTERN,
+  description: "Environment-variable style name, e.g. GITHUB_TOKEN",
+} as const
 
 export default Plugin.define({
   id: "blindfold",
@@ -125,7 +135,7 @@ export default Plugin.define({
           resolve(answer)
           void rpc.events.emit("resolved", { requestID }).catch(() => undefined)
         }
-        const timer = setTimeout(() => finish({ status: acknowledged ? "timeout" : "unavailable" }), settings.prompt.timeout)
+        const timer = setTimeout(() => finish({ status: acknowledged ? "timeout" : "unavailable" }), PROMPT_TIMEOUT)
         const ackTimer = setTimeout(() => finish({ status: "unavailable" }), ACK_TIMEOUT)
         pending.set(requestID, {
           finish,
@@ -138,65 +148,49 @@ export default Plugin.define({
       })
     }
 
+    async function obtain(request: { sessionID: string; name: string; reason: string; replace?: boolean }) {
+      const { name, reason, replace } = request
+      if (!new RegExp(NAME_PATTERN).test(name)) throw new Error(`Secret name must match ${NAME_PATTERN}`)
+      const stored = redactor.get(name)
+      if (stored !== undefined && !replace) return stored
+      const answer = await ask({ sessionID: request.sessionID, name, reason })
+      if (answer.status !== "submitted") throw new Error(failure(name, answer.status))
+      redactor.set(name, answer.value)
+      return answer.value
+    }
+
     await ctx.tool.transform((editor) => {
       editor.namespace({
         name: NAMESPACE,
         description: "Secrets provided by the user without revealing their values to the agent.",
       })
       editor.add({
-        name: REQUEST_TOOL,
-        description: [
-          "Ask the user for a secret value, such as an API token or password, without revealing it to you.",
-          "The value is never returned; the result explains how to use it.",
-        ].join(" "),
+        name: GET_TOOL,
+        description: getDescription(settings),
         input: {
           type: "object",
           properties: {
-            name: {
-              type: "string",
-              pattern: NAME_PATTERN,
-              description: "Environment-variable style name, e.g. GITHUB_TOKEN",
-            },
-            reason: { type: "string", minLength: 1, description: "Why the secret is needed, shown to the user" },
-            replace: { type: "boolean", description: "Ask again even if the secret is already stored" },
+            name: NAME_INPUT,
+            reason: { type: "string", minLength: 1, description: "Why the secret is needed, shown to the user if it must be entered" },
+            replace: { type: "boolean", description: "Ask the user again even if the secret is already stored" },
           },
-          required: ["name", "reason"],
-          additionalProperties: false,
-        },
-        options: { namespace: NAMESPACE },
-        async execute(input, context) {
-          const { name, reason, replace } = input as { name: string; reason: string; replace?: boolean }
-          if (!new RegExp(NAME_PATTERN).test(name)) throw new Error(`Secret name must match ${NAME_PATTERN}`)
-          await context.progress({ title: `Secret ${name}` })
-
-          if (!redactor.get(name) || replace) {
-            const answer = await ask({ sessionID: context.sessionID, name, reason })
-            if (answer.status !== "submitted") throw new Error(failure(name, answer.status))
-            redactor.set(name, answer.value)
-          }
-
-          return {
-            content: `Secret ${name} is stored. ${usage(redactor.names(), settings)}`,
-            metadata: { title: `Secret ${name}`, name },
-          }
-        },
-      })
-      if (!settings.codemode.enabled) return
-      editor.add({
-        name: GET_TOOL,
-        description: "Read a stored secret value. Use it directly in code; never return or log it.",
-        input: {
-          type: "object",
-          properties: { name: { type: "string", pattern: NAME_PATTERN } },
           required: ["name"],
           additionalProperties: false,
         },
-        options: { namespace: NAMESPACE, codemode: true },
-        async execute(input) {
-          const { name } = input as { name: string }
-          const value = redactor.get(name)
-          if (value === undefined) throw new Error(`No secret named ${name}. Request it with blindfold.request first.`)
-          return { content: value }
+        // In Code Mode the value reaches only the running code. As a regular tool the result enters the chat,
+        // so it confirms the secret is stored without returning it.
+        options: settings.codemode.enabled
+          ? { namespace: NAMESPACE, codemode: true, pinned: true }
+          : { namespace: NAMESPACE, codemode: false },
+        async execute(input, context) {
+          const { name, reason, replace } = input as { name: string; reason?: string; replace?: boolean }
+          await context.progress({ title: `Secret ${name}` })
+          const value = await obtain({ sessionID: context.sessionID, name, reason: reason ?? `The agent needs ${name}.`, replace })
+          if (settings.codemode.enabled) return { content: value }
+          return {
+            content: `Secret ${name} is stored. Blindfold secrets available: ${redactor.names().join(", ")}.`,
+            metadata: { title: `Secret ${name}`, name },
+          }
         },
       })
     })
@@ -214,11 +208,13 @@ export default Plugin.define({
       event.error = new ToolError({ message, metadata, error: cause })
     })
 
+    const system = instructions(settings)
     await ctx.session.hook("context", (event) => {
-      if (redactor.size === 0) return
-      event.messages = redactor.value(event.messages)
-      event.system = redactor.value(event.system)
-      event.system.push({ type: "text", text: usage(redactor.names(), settings) })
+      if (redactor.size > 0) {
+        event.messages = redactor.value(event.messages)
+        event.system = redactor.value(event.system)
+      }
+      event.system.push({ type: "text", text: system })
     })
 
     // Last line of defense for requests that bypass the context hook, such as compaction and titles.
