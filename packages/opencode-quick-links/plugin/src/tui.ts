@@ -21,35 +21,39 @@ function trimLink(url: string) {
   return url.replace(TRAILING_PUNCTUATION, "")
 }
 
-function extractLinks(messages: ReturnType<Plugin.Context["data"]["session"]["message"]["list"]>) {
-  const seen = new Set<string>()
-  const links: QuickLink[] = []
+type Message = ReturnType<Plugin.Context["data"]["session"]["message"]["list"]>[number]
+
+function messageTexts(message: Message) {
+  if (message.type === "user") return [message.text]
+  if (message.type !== "assistant") return []
+  return message.content.flatMap((part) => {
+    if (part.type === "text") return [part.text]
+    if (part.type !== "tool") return []
+    if (part.state.status !== "completed" && part.state.status !== "error") return []
+    return (part.state.content ?? []).flatMap((content) => content.type === "text" ? [content.text] : [])
+  })
+}
+
+function extractLinks(messages: Message[]) {
+  const urls: string[] = []
 
   for (const message of messages) {
-    const texts = message.type === "user"
-      ? [message.text]
-      : message.type === "assistant"
-        ? message.content.flatMap((part) => part.type === "text" ? [part.text] : [])
-        : []
-
-    for (const text of texts) {
+    for (const text of messageTexts(message)) {
       for (const match of text.matchAll(URL_PATTERN)) {
-        const candidate = trimLink(match[0])
-        let url: string
-
         try {
-          const parsed = new URL(candidate)
-          if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue
-          url = parsed.href
-        } catch {
-          continue
-        }
-
-        if (seen.has(url)) continue
-        seen.add(url)
-        links.push({ url })
+          const parsed = new URL(trimLink(match[0]))
+          if (parsed.protocol === "http:" || parsed.protocol === "https:") urls.push(parsed.href)
+        } catch {}
       }
     }
+  }
+
+  const seen = new Set<string>()
+  const links: QuickLink[] = []
+  for (const url of urls.reverse()) {
+    if (seen.has(url)) continue
+    seen.add(url)
+    links.push({ url })
   }
 
   return links

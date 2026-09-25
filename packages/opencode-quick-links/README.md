@@ -21,7 +21,7 @@ OpenCode installs npm plugins automatically at startup.
 
 Select **Open session links** from the command palette or run `/links`. Search the dialog and press Enter to open the selected URL in your browser.
 
-The plugin scans the active conversation when you open the dialog. It includes HTTP and HTTPS links from user and assistant messages and removes duplicates.
+The plugin scans the active conversation when you open the dialog. It includes HTTP and HTTPS links from user messages, assistant messages, and tool outputs, lists the most recent first, and removes duplicates.
 
 ## Configure
 
