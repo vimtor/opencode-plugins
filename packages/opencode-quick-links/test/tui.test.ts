@@ -43,7 +43,9 @@ test.each([
             { type: "text", text: "[Guide](https://example.com/guide)follow-up(foo) **https://example.com/guide**" },
             { type: "text", text: "**[Nested](https://example.com/page_(one_(two))/details)**" },
             { type: "reasoning", text: "https://private.example/reasoning" },
-            { type: "tool", id: "tool", name: "test", time: { created: 0 }, state: { status: "completed", input: {}, content: [{ type: "text", text: "https://private.example/tool" }] } },
+            { type: "tool", id: "tool", name: "test", time: { created: 0 }, state: { status: "completed", input: {}, content: [{ type: "text", text: "https://example.com/tool https://example.com/guide" }] } },
+            { type: "tool", id: "failed", name: "test", time: { created: 0 }, state: { status: "error", input: {}, error: { type: "test", message: "failed" }, content: [{ type: "text", text: "https://example.com/error" }] } },
+            { type: "tool", id: "running", name: "test", time: { created: 0 }, state: { status: "running", input: { url: "https://private.example/input" }, metadata: {} } },
           ] },
           { id: "synthetic", time: { created: 0 }, type: "synthetic", text: "https://private.example/synthetic" },
           { id: "system", time: { created: 0 }, type: "system", text: "https://private.example/system" },
@@ -72,14 +74,16 @@ test.each([
   await command.run()
   expect(dialog?.placeholder).toBe("Search links in the conversation")
   expect(dialog?.options[0]).toEqual({
-    title: "example.com/guide",
-    value: "https://example.com/guide",
+    title: "example.com/error",
+    value: "https://example.com/error",
   })
   expect(dialog?.options.map((option) => option.value)).toEqual([
+    "https://example.com/error",
     "https://example.com/guide",
-    "https://example.com/page_(one)",
-    "https://github.com/anomalyco/opencode-console/pull/2090",
+    "https://example.com/tool",
     "https://example.com/page_(one_(two))/details",
+    "https://github.com/anomalyco/opencode-console/pull/2090",
+    "https://example.com/page_(one)",
   ])
   if (cleanup) await cleanup()
   expect(disposed).toBe(true)
