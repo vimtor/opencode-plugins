@@ -52,7 +52,9 @@ test("requests a secret through the TUI without returning its value", async () =
   expect(emitted[0]).toEqual(["requested", expect.objectContaining({ sessionID: "ses_test", name: "API_TOKEN", reason: "Call the API" })])
   expect(emitted[1]).toEqual(["resolved", { requestID: emitted[0][1].requestID }])
   expect(JSON.stringify(result)).not.toContain(SECRET)
-  expect(tools.get("request")!.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
+  expect(tools.get("request")!.options).toEqual({ namespace: "blindfold", codemode: false })
+  expect(tools.get("request")!.description).toContain('GH_TOKEN="$GITHUB_TOKEN"')
+  expect(tools.get("request")!.description).toContain("tools.blindfold.get")
   expect(tools.get("get")!.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
   expect(await tools.get("get")!.execute({ name: "API_TOKEN" }, context)).toEqual({ content: SECRET })
 })
@@ -62,7 +64,7 @@ test("tells the agent to request secrets before any are stored", async () => {
   const request = { system: [] as Array<{ type: string; text: string }>, messages: [] }
   await hooks.get("session.context")!(request)
   expect(request.system).toHaveLength(1)
-  expect(request.system[0].text).toContain("tools.blindfold.request")
+  expect(request.system[0].text).toContain("blindfold_request")
   expect(request.system[0].text).toContain("Never ask the user to paste secrets")
 })
 
@@ -170,6 +172,7 @@ test("asks before shell commands that name a secret", async () => {
 test("code mode access can be turned off", async () => {
   const { tools, store } = await harness({ codemode: { enabled: false } })
   expect(tools.has("get")).toBe(false)
+  expect(tools.get("request")!.description).not.toContain("blindfold.get")
   const result = await store()
   expect(result.content).not.toContain("blindfold.get")
 })
@@ -182,6 +185,7 @@ test("shell approval and env injection can be turned off", async () => {
   const disabled = await harness({ shell: { enabled: false } })
   expect(disabled.hooks.has("permission.evaluate")).toBe(false)
   expect(disabled.hooks.has("shell.create.before")).toBe(false)
+  expect(disabled.tools.get("request")!.description).not.toContain("Shell")
 })
 
 test("redacts one-character secrets in raw form only", async () => {

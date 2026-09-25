@@ -67,7 +67,7 @@ function mentioned(names: string[], command: string) {
 }
 
 const DISCOVERY = [
-  "When a task needs a secret such as an API key, token, or password, call `tools.blindfold.request({ name, reason })` in Code Mode so the user can enter it privately.",
+  "When a task needs a secret such as an API key, token, or password, call the `blindfold_request` tool so the user can enter it privately.",
   "Never ask the user to paste secrets into the chat.",
 ].join(" ")
 
@@ -152,8 +152,13 @@ export default Plugin.define({
         name: REQUEST_TOOL,
         description: [
           "Ask the user for a secret value, such as an API token or password, without revealing it to you.",
-          "The value is never returned; the result explains how to use it.",
-        ].join(" "),
+          "The value is never returned.",
+          settings.shell.enabled
+            ? 'Shell commands receive it as an environment variable only when the command names it, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`, and the user may be asked to approve the command.'
+            : undefined,
+          settings.codemode.enabled ? "In Code Mode, `tools.blindfold.get({ name })` returns it to the running code only." : undefined,
+          "Output containing the value is redacted.",
+        ].filter(Boolean).join(" "),
         input: {
           type: "object",
           properties: {
@@ -168,7 +173,7 @@ export default Plugin.define({
           required: ["name", "reason"],
           additionalProperties: false,
         },
-        options: { namespace: NAMESPACE, codemode: true, pinned: true },
+        options: { namespace: NAMESPACE, codemode: false },
         async execute(input, context) {
           const { name, reason, replace } = input as { name: string; reason: string; replace?: boolean }
           if (!new RegExp(NAME_PATTERN).test(name)) throw new Error(`Secret name must match ${NAME_PATTERN}`)
@@ -200,7 +205,7 @@ export default Plugin.define({
         async execute(input) {
           const { name } = input as { name: string }
           const value = redactor.get(name)
-          if (value === undefined) throw new Error(`No secret named ${name}. Request it with blindfold.request first.`)
+          if (value === undefined) throw new Error(`No secret named ${name}. Request it with blindfold_request first.`)
           return { content: value }
         },
       })
