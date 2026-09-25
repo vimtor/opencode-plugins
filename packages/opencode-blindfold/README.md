@@ -6,10 +6,12 @@ Requires OpenCode V2 (beta) and the TUI.
 
 ## How it works
 
-1. When a task needs a secret, the agent calls the `blindfold_request` tool with a name, such as `GITHUB_TOKEN`, and a reason. The plugin's system instructions tell the agent to do this instead of asking you to paste secrets into the chat.
+1. When a task needs a secret, the agent asks for it by name, such as `GITHUB_TOKEN`, with a reason. The plugin's system instructions tell the agent to do this instead of asking you to paste secrets into the chat.
+   - In Code Mode (preferred), `tools.blindfold.get({ name, reason })` asks for the secret if it isn't stored yet, and `tools.blindfold.request({ name, reason })` asks without returning it.
+   - With Code Mode disabled, the agent calls the `blindfold_request` tool.
 2. The TUI opens a dialog where you paste the value. The value goes to the plugin and never to the agent.
 3. The agent uses the secret without reading it:
-   - In Code Mode, `tools.blindfold.get({ name: "GITHUB_TOKEN" })` returns the value to the running code only.
+   - In Code Mode, `tools.blindfold.get` returns the value to the running code only.
    - A shell command receives it as an environment variable only when the command names it, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`. OpenCode asks you to approve such commands. Commands that don't name it, such as `printenv`, never get the value.
 4. The plugin replaces the value, and its JSON, URL, base64, and hex encodings, with `[REDACTED:GITHUB_TOKEN]` in:
    - tool results and errors
@@ -68,7 +70,7 @@ The values shown are the defaults.
 
 - `shell.enabled`: set secrets as environment variables for shell commands that name them.
 - `shell.approve`: ask for your approval before running shell commands that name a secret.
-- `codemode.enabled`: provide `blindfold.get` in Code Mode. At least one of `shell.enabled` and `codemode.enabled` must be `true`.
+- `codemode.enabled`: provide the Blindfold tools in Code Mode. When `false`, only the regular `blindfold_request` tool is available. At least one of `shell.enabled` and `codemode.enabled` must be `true`.
 - `prompt.timeout`: how long to wait for the dialog, in milliseconds.
 
 ## Limitations
