@@ -6,7 +6,7 @@ Requires OpenCode V2 (beta) and the TUI.
 
 ## How it works
 
-1. The agent calls `blindfold_request` with a name, such as `GITHUB_TOKEN`, and a reason.
+1. When a task needs a secret, the agent calls `tools.blindfold.request({ name, reason })` in Code Mode with a name, such as `GITHUB_TOKEN`, and a reason. The plugin's system instructions tell the agent to do this instead of asking you to paste secrets into the chat.
 2. The TUI opens a dialog where you paste the value. The value goes to the plugin and never to the agent.
 3. The agent uses the secret without reading it:
    - In Code Mode, `tools.blindfold.get({ name: "GITHUB_TOKEN" })` returns the value to the running code only.

@@ -52,8 +52,18 @@ test("requests a secret through the TUI without returning its value", async () =
   expect(emitted[0]).toEqual(["requested", expect.objectContaining({ sessionID: "ses_test", name: "API_TOKEN", reason: "Call the API" })])
   expect(emitted[1]).toEqual(["resolved", { requestID: emitted[0][1].requestID }])
   expect(JSON.stringify(result)).not.toContain(SECRET)
-  expect(tools.get("get")!.options).toEqual({ namespace: "blindfold", codemode: true })
+  expect(tools.get("request")!.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
+  expect(tools.get("get")!.options).toEqual({ namespace: "blindfold", codemode: true, pinned: true })
   expect(await tools.get("get")!.execute({ name: "API_TOKEN" }, context)).toEqual({ content: SECRET })
+})
+
+test("tells the agent to request secrets before any are stored", async () => {
+  const { hooks } = await harness()
+  const request = { system: [] as Array<{ type: string; text: string }>, messages: [] }
+  await hooks.get("session.context")!(request)
+  expect(request.system).toHaveLength(1)
+  expect(request.system[0].text).toContain("tools.blindfold.request")
+  expect(request.system[0].text).toContain("Never ask the user to paste secrets")
 })
 
 test("fails when the user cancels, no TUI responds, or the request times out", async () => {

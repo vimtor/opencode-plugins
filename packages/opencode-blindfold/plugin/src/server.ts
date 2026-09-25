@@ -66,6 +66,11 @@ function mentioned(names: string[], command: string) {
   return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
+const DISCOVERY = [
+  "When a task needs a secret such as an API key, token, or password, call `tools.blindfold.request({ name, reason })` in Code Mode so the user can enter it privately.",
+  "Never ask the user to paste secrets into the chat.",
+].join(" ")
+
 function usage(names: string[], settings: Settings) {
   const access = [
     settings.codemode.enabled
@@ -163,7 +168,7 @@ export default Plugin.define({
           required: ["name", "reason"],
           additionalProperties: false,
         },
-        options: { namespace: NAMESPACE },
+        options: { namespace: NAMESPACE, codemode: true, pinned: true },
         async execute(input, context) {
           const { name, reason, replace } = input as { name: string; reason: string; replace?: boolean }
           if (!new RegExp(NAME_PATTERN).test(name)) throw new Error(`Secret name must match ${NAME_PATTERN}`)
@@ -191,7 +196,7 @@ export default Plugin.define({
           required: ["name"],
           additionalProperties: false,
         },
-        options: { namespace: NAMESPACE, codemode: true },
+        options: { namespace: NAMESPACE, codemode: true, pinned: true },
         async execute(input) {
           const { name } = input as { name: string }
           const value = redactor.get(name)
@@ -215,10 +220,13 @@ export default Plugin.define({
     })
 
     await ctx.session.hook("context", (event) => {
-      if (redactor.size === 0) return
+      if (redactor.size === 0) {
+        event.system.push({ type: "text", text: DISCOVERY })
+        return
+      }
       event.messages = redactor.value(event.messages)
       event.system = redactor.value(event.system)
-      event.system.push({ type: "text", text: usage(redactor.names(), settings) })
+      event.system.push({ type: "text", text: `${DISCOVERY} ${usage(redactor.names(), settings)}` })
     })
 
     // Last line of defense for requests that bypass the context hook, such as compaction and titles.
