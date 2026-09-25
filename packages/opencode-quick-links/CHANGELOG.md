@@ -1,5 +1,11 @@
 # opencode-quick-links
 
+## 1.2.0
+
+### Minor Changes
+
+- 0d35ac4: Include links from tool outputs and list the most recent links first.
+
 ## 1.1.0
 
 ### Minor Changes
