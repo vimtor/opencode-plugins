@@ -70,8 +70,6 @@ function mentioned(names: string[], command: string) {
   return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
-const NEVER_PRINT = "Never print, return, or write secret values; they are redacted from tool output."
-
 function instructions(settings: Settings) {
   const how = settings.codemode.enabled
     ? "use Blindfold from Code Mode: `tools.blindfold.get({ name, reason })` asks the user privately if the secret isn't stored yet and returns it to the running code only."
@@ -82,7 +80,7 @@ function instructions(settings: Settings) {
       ? "If only shell commands need it, call `tools.blindfold.request({ name, reason })` instead."
       : undefined,
     "Never ask the user to paste secrets into the chat.",
-    NEVER_PRINT,
+    "Never print, return, or write secret values; they are redacted from tool output.",
   ].filter(Boolean).join(" ")
 }
 
@@ -100,13 +98,12 @@ function requestDescription(settings: Settings) {
     "The value is never returned.",
     ...shellUsage(settings),
     settings.codemode.enabled ? "When code needs the value, use `tools.blindfold.get({ name, reason })` instead." : undefined,
-    "Output containing the value is redacted.",
   ].filter(Boolean).join(" ")
 }
 
 const GET_DESCRIPTION = [
   "Return a secret's value to the running code, asking the user for it first if it isn't stored.",
-  "Use it directly in code, e.g. in a fetch header; never return or log it.",
+  "Use it directly in code, e.g. in a fetch header.",
 ].join(" ")
 
 const NAME_INPUT = {
@@ -206,7 +203,7 @@ export default Plugin.define({
           await context.progress({ title: `Secret ${name}` })
           await obtain({ sessionID: context.sessionID, name, reason, replace })
           return {
-            content: `Secret ${name} is stored. Blindfold secrets available: ${redactor.names().join(", ")}. ${NEVER_PRINT}`,
+            content: `Secret ${name} is stored. Blindfold secrets available: ${redactor.names().join(", ")}.`,
             metadata: { title: `Secret ${name}`, name },
           }
         },
