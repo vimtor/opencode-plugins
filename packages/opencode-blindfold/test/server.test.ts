@@ -17,12 +17,16 @@ async function harness(options: Record<string, unknown> = {}) {
   const hooks = new Map<string, Hook>()
   const emitted: Array<[string, Record<string, unknown>]> = []
   let handlers!: Record<string, Handler>
+  let unreachable = false
   const cleanup = await blindfold.setup({
     options,
     rpc: {
       register: async (_: unknown, value: Record<string, Handler>) => {
         handlers = value
-        return { dispose: async () => {}, events: { emit: async (name: string, data: Record<string, unknown>) => { emitted.push([name, data]) } } }
+        return { dispose: async () => {}, events: { emit: async (name: string, data: Record<string, unknown>) => {
+          if (unreachable && name === "requested") throw new Error("no subscribers")
+          emitted.push([name, data])
+        } } }
       },
     },
     tool: {
@@ -43,7 +47,7 @@ async function harness(options: Record<string, unknown> = {}) {
     return result
   }
 
-  return { tools, hooks, emitted, handlers: () => handlers, store, cleanup }
+  return { tools, hooks, emitted, handlers: () => handlers, store, cleanup, unreachable: () => { unreachable = true } }
 }
 
 test("registers a single get tool, in Code Mode when enabled", async () => {
@@ -105,8 +109,8 @@ test("get asks the user for a missing secret from Code Mode", async () => {
   expect(await replaced).toEqual({ content: "new-secret" })
 })
 
-test("fails when the user cancels, no TUI responds, or the request times out", async () => {
-  const { tools, emitted, handlers } = await harness({ prompt: { timeout: 20 } })
+test("fails when the user cancels or no TUI responds", async () => {
+  const { tools, emitted, handlers, unreachable } = await harness()
   const request = () => tools.get("get")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   const requestID = () => emitted.filter(([event]) => event === "requested").at(-1)![1].requestID
 
@@ -115,13 +119,10 @@ test("fails when the user cancels, no TUI responds, or the request times out", a
   await handlers().cancel({ requestID: requestID() })
   await expect(cancelled).rejects.toThrow("declined to provide API_TOKEN")
 
-  await expect(request()).rejects.toThrow("No OpenCode TUI with opencode-blindfold responded")
-
-  const acknowledged = request()
-  await Bun.sleep(0)
-  expect(await handlers().ack({ requestID: requestID() })).toEqual({ accepted: true })
-  await expect(acknowledged).rejects.toThrow("Timed out waiting")
   expect(await handlers().ack({ requestID: requestID() })).toEqual({ accepted: false })
+
+  unreachable()
+  await expect(request()).rejects.toThrow("No OpenCode TUI with opencode-blindfold responded")
 })
 
 test("redacts tool results, errors, model context, and provider requests", async () => {
@@ -226,12 +227,13 @@ test("redacts one-character secrets in raw form only", async () => {
 
 test("rejects invalid options and empty secrets", async () => {
   await expect(harness({ shell: { enabled: "yes" } })).rejects.toThrow("shell.enabled option")
-  await expect(harness({ prompt: { timeout: 0 } })).rejects.toThrow("prompt.timeout option")
   await expect(harness({ shell: true })).rejects.toThrow("shell option must be an object")
   await expect(harness({ shell: { enabled: false }, codemode: { enabled: false } })).rejects.toThrow("secrets cannot be used")
-  const { tools, emitted, handlers } = await harness({ prompt: { timeout: 20 } })
+  const { tools, emitted, handlers } = await harness()
   const result = tools.get("get")!.execute({ name: "API_TOKEN", reason: "Call the API" }, context)
   await Bun.sleep(0)
-  expect(await handlers().submit({ requestID: emitted[0][1].requestID, value: "" })).toEqual({ accepted: false })
-  await expect(result).rejects.toThrow("API_TOKEN")
+  const { requestID } = emitted[0][1]
+  expect(await handlers().submit({ requestID, value: "" })).toEqual({ accepted: false })
+  await handlers().cancel({ requestID })
+  await expect(result).rejects.toThrow("declined to provide API_TOKEN")
 })

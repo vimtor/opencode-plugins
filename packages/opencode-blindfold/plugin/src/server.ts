@@ -8,7 +8,7 @@ const NAMESPACE = "blindfold"
 const GET_TOOL = "get"
 const GET_TOOL_IDS = new Set([`${NAMESPACE}_${GET_TOOL}`, `${NAMESPACE}.${GET_TOOL}`])
 const NAME_PATTERN = "^[A-Z_][A-Z0-9_]*$"
-const DEFAULT_TIMEOUT = 10 * 60_000
+const PROMPT_TIMEOUT = 10 * 60_000
 const ACK_TIMEOUT = 5_000
 
 type Answer = { status: "submitted"; value: string } | { status: "cancelled" | "timeout" | "unavailable" }
@@ -26,7 +26,6 @@ function failure(name: string, status: Exclude<Answer["status"], "submitted">) {
 type Settings = {
   shell: { enabled: boolean; approve: boolean }
   codemode: { enabled: boolean }
-  prompt: { timeout: number }
 }
 
 function group(options: Record<string, unknown>, key: string) {
@@ -48,15 +47,9 @@ function boolean(options: Record<string, unknown>, key: string, name: string, fa
 function getSettings(options: Record<string, unknown>): Settings {
   const shell = group(options, "shell")
   const codemode = group(options, "codemode")
-  const prompt = group(options, "prompt")
-  const timeout = prompt.timeout ?? DEFAULT_TIMEOUT
-  if (typeof timeout !== "number" || !Number.isFinite(timeout) || timeout <= 0) {
-    throw new Error("opencode-blindfold prompt.timeout option must be a positive number of milliseconds")
-  }
   const settings = {
     shell: { enabled: boolean(shell, "shell", "enabled", true), approve: boolean(shell, "shell", "approve", true) },
     codemode: { enabled: boolean(codemode, "codemode", "enabled", true) },
-    prompt: { timeout },
   }
   if (!settings.shell.enabled && !settings.codemode.enabled) {
     throw new Error("opencode-blindfold needs shell.enabled or codemode.enabled, otherwise secrets cannot be used")
@@ -142,7 +135,7 @@ export default Plugin.define({
           resolve(answer)
           void rpc.events.emit("resolved", { requestID }).catch(() => undefined)
         }
-        const timer = setTimeout(() => finish({ status: acknowledged ? "timeout" : "unavailable" }), settings.prompt.timeout)
+        const timer = setTimeout(() => finish({ status: acknowledged ? "timeout" : "unavailable" }), PROMPT_TIMEOUT)
         const ackTimer = setTimeout(() => finish({ status: "unavailable" }), ACK_TIMEOUT)
         pending.set(requestID, {
           finish,
