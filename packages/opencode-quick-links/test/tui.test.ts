@@ -19,7 +19,7 @@ test.each([
   { label: "different shortcut", options: { keybind: "alt+l" }, bind: "alt+l" },
   { label: "disabled shortcut", options: { keybind: false }, bind: false },
   { label: "none shortcut", options: { keybind: "none" }, bind: false },
-])("reads and deduplicates conversation links with $label", async ({ options, bind }) => {
+])("reads and deduplicates text links, excluding tool calls, with $label", async ({ options, bind }) => {
   let command: KeymapCommand | undefined
   let dialog: DialogSelectOptions<string> | undefined
   let render!: SlotClaim<"app">["render"]
@@ -74,14 +74,12 @@ test.each([
   await command.run()
   expect(dialog?.placeholder).toBe("Search links in the conversation")
   expect(dialog?.options[0]).toEqual({
-    title: "example.com/error",
-    value: "https://example.com/error",
+    title: "example.com/page_(one_(two))/details",
+    value: "https://example.com/page_(one_(two))/details",
   })
   expect(dialog?.options.map((option) => option.value)).toEqual([
-    "https://example.com/error",
-    "https://example.com/guide",
-    "https://example.com/tool",
     "https://example.com/page_(one_(two))/details",
+    "https://example.com/guide",
     "https://github.com/anomalyco/opencode-console/pull/2090",
     "https://example.com/page_(one)",
   ])

@@ -26,12 +26,7 @@ type Message = ReturnType<Plugin.Context["data"]["session"]["message"]["list"]>[
 function messageTexts(message: Message) {
   if (message.type === "user") return [message.text]
   if (message.type !== "assistant") return []
-  return message.content.flatMap((part) => {
-    if (part.type === "text") return [part.text]
-    if (part.type !== "tool") return []
-    if (part.state.status !== "completed" && part.state.status !== "error") return []
-    return (part.state.content ?? []).flatMap((content) => content.type === "text" ? [content.text] : [])
-  })
+  return message.content.flatMap((part) => part.type === "text" ? [part.text] : [])
 }
 
 function extractLinks(messages: Message[]) {
