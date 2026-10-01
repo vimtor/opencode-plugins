@@ -1,5 +1,11 @@
 # opencode-quick-links
 
+## 1.2.1
+
+### Patch Changes
+
+- b5d289f: Exclude links from tool calls and outputs; only scan user and assistant text.
+
 ## 1.2.0
 
 ### Minor Changes
