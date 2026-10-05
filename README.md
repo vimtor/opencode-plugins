@@ -11,6 +11,7 @@ My personal plugins for OpenCode V2 (beta).
 - [`opencode-hide-variants`](packages/opencode-hide-variants/README.md): hides unwanted model variants globally or per model.
 - [`opencode-keep-going`](packages/opencode-keep-going/README.md): sends a continue prompt when you press Enter on an empty input.
 - [`opencode-quick-links`](packages/opencode-quick-links/README.md): searches and opens links from the active conversation.
+- [`opencode-pr-link`](packages/opencode-pr-link/README.md): opens the current session's pull request in the browser.
 - [`opencode-quick-quote`](packages/opencode-quick-quote/README.md): quotes paragraphs from the last reply with inline autocomplete.
 
 ## Development

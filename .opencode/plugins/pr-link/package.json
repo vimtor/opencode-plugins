@@ -1,0 +1,5 @@
+{
+  "name": "opencode-pr-link-local",
+  "type": "module",
+  "exports": { "./tui": "./tui.ts" }
+}
