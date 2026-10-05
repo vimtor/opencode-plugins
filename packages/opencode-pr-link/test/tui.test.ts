@@ -60,6 +60,7 @@ async function setup(input: {
         return () => { disposed = true }
       },
       router: { current: () => input.route ?? { type: "home" } },
+      format: { path: (value: string) => `formatted:${value}` },
       toast: { show: (toast: ToastOptions) => { toasts.push(toast) } },
     },
   } as unknown as Plugin.Context)
@@ -85,7 +86,7 @@ test.each([
   expect(command.id).toBe("pr-link.open")
   expect(command.bind).toBe(bind)
   expect(command.palette).toBe(true)
-  expect(command.slash?.name).toBe("pr")
+  expect(command.slash).toBeUndefined()
   expect(await cleanup()).toBe(true)
 })
 
@@ -114,20 +115,55 @@ test("falls back to the default directory outside sessions", async () => {
   expect(readFileSync(log, "utf8")).toBe(`${directory}\n`)
 })
 
-test("shows gh errors without opening the browser", async () => {
-  fakeGh(`echo 'no pull requests found for branch "main"' >&2\nexit 1`)
-  const { command, toasts } = await setup({ location: tmpdir() })
+test.each([
+  {
+    label: "missing pull request",
+    stderr: `no pull requests found for branch "feat/x"`,
+    toast: { variant: "warning", title: "No pull request", message: "Branch feat/x has no pull request." },
+  },
+  {
+    label: "non-Git directory",
+    stderr: "failed to run git: fatal: not a git repository (or any of the parent directories): .git",
+    toast: { variant: "warning", title: "Not a Git repository", message: "formatted:<directory>" },
+  },
+  {
+    label: "detached HEAD",
+    stderr: "could not determine current branch: failed to run git: not on any branch",
+    toast: { variant: "warning", title: "No branch checked out", message: "Check out a branch to open its pull request." },
+  },
+  {
+    label: "signed-out gh",
+    stderr: "To get started with GitHub CLI, please run:  gh auth login",
+    toast: { variant: "error", title: "GitHub CLI not signed in", message: "Run gh auth login to open pull requests." },
+  },
+  {
+    label: "other gh failure",
+    stderr: "error connecting to api.github.com",
+    toast: { variant: "error", title: "Could not open pull request", message: "error connecting to api.github.com" },
+  },
+])("shows a toast for $label without opening the browser", async ({ stderr, toast }) => {
+  fakeGh(`echo '${stderr}' >&2\nexit 1`)
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "opencode-pr-link-error-")))
+  const { command, toasts } = await setup({ location: directory })
   await command.run()
   expect(opened).toEqual([])
-  expect(toasts).toEqual([{ variant: "warning", message: 'no pull requests found for branch "main"' }])
+  expect(toasts).toEqual([{ ...toast, message: toast.message.replace("<directory>", directory) }])
 })
 
-test("asks to install gh when it is missing", async () => {
+test("shows a warning when the directory does not exist", async () => {
+  fakeGh("echo https://github.com/vimtor/opencode-plugins/pull/1")
+  const { command, toasts } = await setup({ location: "/missing/opencode-pr-link" })
+  await command.run()
+  expect(opened).toEqual([])
+  expect(toasts).toEqual([{ variant: "warning", title: "Directory not found", message: "formatted:/missing/opencode-pr-link" }])
+})
+
+test("shows an error when gh is missing", async () => {
   process.env.PATH = mkdtempSync(join(tmpdir(), "opencode-pr-link-empty-"))
   const { command, toasts } = await setup({ location: tmpdir() })
   await command.run()
   expect(opened).toEqual([])
-  expect(toasts).toEqual([{ variant: "warning", message: "Install the GitHub CLI (gh) to open pull requests." }])
+  expect(toasts).toEqual([{ variant: "error", title: "GitHub CLI not found", message: "Install gh to open pull requests." }])
 })
 
 test.each([true, 42, "", "   "])("rejects invalid keybind option %p", (keybind) => {

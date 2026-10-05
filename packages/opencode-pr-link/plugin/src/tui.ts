@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process"
+import { existsSync } from "node:fs"
 import { Plugin } from "@opencode/plugin/tui"
+import type { ToastOptions } from "@opencode/plugin/tui/context"
 import open from "open"
 
 type ExecError = Error & { code?: string | number; stderr?: string }
@@ -13,10 +15,24 @@ function findPullRequest(directory: string) {
   })
 }
 
-function errorMessage(error: ExecError) {
-  if (error.code === "ENOENT") return "Install the GitHub CLI (gh) to open pull requests."
-  const line = error.stderr?.split("\n").map((line) => line.trim()).find(Boolean)
-  return line?.replace(/^failed to run git: (fatal: )?/, "") || "Could not find a pull request."
+function errorToast(error: ExecError, directory: string): ToastOptions {
+  if (error.code === "ENOENT") {
+    return { variant: "error", title: "GitHub CLI not found", message: "Install gh to open pull requests." }
+  }
+  const stderr = error.stderr ?? ""
+  const branch = stderr.match(/no pull requests found for branch "(.+)"/)?.[1]
+  if (branch) return { variant: "warning", title: "No pull request", message: `Branch ${branch} has no pull request.` }
+  if (/not a git repository/i.test(stderr)) {
+    return { variant: "warning", title: "Not a Git repository", message: directory }
+  }
+  if (/not on any branch/i.test(stderr)) {
+    return { variant: "warning", title: "No branch checked out", message: "Check out a branch to open its pull request." }
+  }
+  if (stderr.includes("gh auth login")) {
+    return { variant: "error", title: "GitHub CLI not signed in", message: "Run gh auth login to open pull requests." }
+  }
+  const line = stderr.split("\n").map((line) => line.trim()).find(Boolean)
+  return { variant: "error", title: "Could not open pull request", message: line || error.message }
 }
 
 export default Plugin.define({
@@ -38,19 +54,24 @@ export default Plugin.define({
     }
 
     async function openPullRequest() {
+      const cwd = await directory()
+      if (!existsSync(cwd)) {
+        ctx.ui.toast.show({ variant: "warning", title: "Directory not found", message: ctx.ui.format.path(cwd) })
+        return
+      }
       let url: string
       try {
-        url = await findPullRequest(await directory())
+        url = await findPullRequest(cwd)
       } catch (error) {
-        ctx.ui.toast.show({ variant: "warning", message: errorMessage(error as ExecError) })
+        ctx.ui.toast.show(errorToast(error as ExecError, ctx.ui.format.path(cwd)))
         return
       }
       if (!url) {
-        ctx.ui.toast.show({ variant: "warning", message: "Could not find a pull request." })
+        ctx.ui.toast.show({ variant: "error", title: "Could not open pull request", message: "GitHub CLI returned no URL." })
         return
       }
       await open(url).catch(() => {
-        ctx.ui.toast.show({ variant: "warning", title: "Could not open browser", message: url })
+        ctx.ui.toast.show({ variant: "error", title: "Could not open browser", message: url })
       })
     }
 
@@ -66,9 +87,8 @@ export default Plugin.define({
               title: "Open pull request",
               group: "Plugin",
               palette: true,
-              slash: { name: "pr" },
               run: () => openPullRequest().catch(() => {
-                ctx.ui.toast.show({ variant: "error", message: "Could not open pull request." })
+                ctx.ui.toast.show({ variant: "error", title: "Could not open pull request", message: "Something went wrong. Try again." })
               }),
             },
           ],

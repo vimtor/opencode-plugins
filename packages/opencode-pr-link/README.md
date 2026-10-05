@@ -19,11 +19,11 @@ OpenCode installs npm plugins automatically at startup.
 
 ## Use
 
-Select **Open pull request** from the command palette or run `/pr`. The plugin opens the pull request for the checked-out branch in your browser.
+Select **Open pull request** from the command palette or press your configured shortcut. The plugin opens the pull request for the checked-out branch in your browser.
 
 Inside a session, the plugin uses the session's directory, so sessions in Git worktrees open their own branch's pull request. Outside a session, it uses OpenCode's current directory.
 
-The plugin runs `gh pr view` in that directory to find the pull request. If there is none, or `gh` fails, it shows the error as a toast.
+The plugin runs `gh pr view` in that directory to find the pull request. A warning toast explains when there is nothing to open, such as a branch without a pull request; an error toast reports failures, such as a missing or signed-out `gh`.
 
 ## Configure
 
@@ -41,7 +41,7 @@ No shortcut is assigned by default. Set `options.keybind` on the plugin entry in
 }
 ```
 
-Use any OpenCode key sequence, such as `alt+p` or `<leader>p`. Omit `keybind`, or set it to `false` or `"none"`, to disable the shortcut. `/pr` and the command palette remain available.
+Use any OpenCode key sequence, such as `alt+p` or `<leader>p`. Omit `keybind`, or set it to `false` or `"none"`, to disable the shortcut. The command palette remains available.
 
 OpenCode's top-level `keybinds` configuration currently accepts built-in command IDs only; configure this plugin's shortcut through `options.keybind` instead.
 
