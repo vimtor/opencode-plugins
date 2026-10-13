@@ -1,5 +1,11 @@
 # opencode-blindfold
 
+## 0.2.1
+
+### Patch Changes
+
+- aef9187: Tell the agent that printed secrets are redacted instead of forbidding printing them.
+
 ## 0.2.0
 
 ### Minor Changes
