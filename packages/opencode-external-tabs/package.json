@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-external-tabs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenCode TUI plugin that opens sessions created by other clients, such as the SDK or tools, as background tabs.",
   "type": "module",
   "exports": {
