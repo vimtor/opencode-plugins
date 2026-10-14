@@ -171,10 +171,16 @@ export default Plugin.define({
           type: "object",
           properties: {
             name: NAME_INPUT,
+            names: {
+              type: "array",
+              items: NAME_INPUT,
+              uniqueItems: true,
+              description: "Multiple environment-variable style names to obtain in one request",
+            },
             reason: { type: "string", minLength: 1, description: "Why the secret is needed, shown to the user if it must be entered" },
             replace: { type: "boolean", description: "Ask the user again even if the secret is already stored" },
           },
-          required: ["name"],
+          required: [],
           additionalProperties: false,
         },
         // In Code Mode the value reaches only the running code. As a regular tool the result enters the chat,
@@ -183,13 +189,25 @@ export default Plugin.define({
           ? { namespace: NAMESPACE, codemode: true, pinned: true }
           : { namespace: NAMESPACE, codemode: false },
         async execute(input, context) {
-          const { name, reason, replace } = input as { name: string; reason?: string; replace?: boolean }
-          await context.progress({ title: `Secret ${name}` })
-          const value = await obtain({ sessionID: context.sessionID, name, reason: reason ?? `The agent needs ${name}.`, replace })
-          if (settings.codemode.enabled) return { content: value }
+          const { name, names, reason, replace } = input as { name?: string; names?: string[]; reason?: string; replace?: boolean }
+          const requested = Array.isArray(names) && names.length > 0 ? names : (name ? [name] : [])
+          if (requested.length === 0) throw new Error("Either name or names is required")
+          const uniqueRequested = [...new Set(requested)]
+          await context.progress({ title: `Secret${uniqueRequested.length === 1 ? ` ${uniqueRequested[0]}` : "s"}` })
+          const stored = await Promise.all(uniqueRequested.map(async (secretName) => [secretName, await obtain({
+            sessionID: context.sessionID,
+            name: secretName,
+            reason: reason ?? `The agent needs ${secretName}.`,
+            replace,
+          })] as const))
+          const values = Object.fromEntries(stored)
+          if (settings.codemode.enabled) {
+            if (uniqueRequested.length === 1) return { content: values[uniqueRequested[0]] } as never
+            return { content: values } as never
+          }
           return {
-            content: `Secret ${name} is stored. Blindfold secrets available: ${redactor.names().join(", ")}.`,
-            metadata: { title: `Secret ${name}`, name },
+            content: `Secret${uniqueRequested.length === 1 ? "" : "s"} ${uniqueRequested.join(", ")} stored. Blindfold secrets available: ${redactor.names().join(", ")}.`,
+            metadata: { title: `Secret${uniqueRequested.length === 1 ? ` ${uniqueRequested[0]}` : "s"}`, names: uniqueRequested },
           }
         },
       })
