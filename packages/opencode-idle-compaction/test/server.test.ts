@@ -119,6 +119,22 @@ test("compacts once until the session grows again", async () => {
   await harness.cleanup()
 })
 
+test.each(["session.compaction.ended", "session.compaction.failed"])("does not compact again after %s", async (type) => {
+  const harness = await setup()
+  await harness.step("ses_a", 250_000)
+  await harness.emit("session.execution.succeeded", { sessionID: "ses_a" })
+  await Bun.sleep(IDLE_WAIT)
+  expect(harness.compactions).toEqual(["ses_a"])
+  // The compaction's own request reports the full context it summarized.
+  await harness.emit("session.compaction.started", { sessionID: "ses_a" })
+  await harness.step("ses_a", 250_000)
+  await harness.emit(type, { sessionID: "ses_a" })
+  await harness.emit("session.execution.failed", { sessionID: "ses_a" })
+  await Bun.sleep(IDLE_WAIT)
+  expect(harness.compactions).toEqual(["ses_a"])
+  await harness.cleanup()
+})
+
 test("stops listening and clears timers on cleanup", async () => {
   const harness = await setup()
   await harness.step("ses_a", 250_000)

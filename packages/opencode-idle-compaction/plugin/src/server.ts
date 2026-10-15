@@ -19,6 +19,7 @@ export default Plugin.define({
 
     const context = new Map<string, number>()
     const timers = new Map<string, ReturnType<typeof setTimeout>>()
+    const compacting = new Set<string>()
 
     function cancel(sessionID: string) {
       clearTimeout(timers.get(sessionID))
@@ -48,6 +49,8 @@ export default Plugin.define({
       for await (const event of ctx.event.subscribe({ signal: controller.signal })) {
         switch (event.type) {
           case "session.step.ended": {
+            // A compaction's own request reads the whole context; it says nothing about the session's size afterwards.
+            if (compacting.has(event.data.sessionID)) break
             const { input, output, cache } = event.data.tokens
             context.set(event.data.sessionID, input + output + cache.read + cache.write)
             break
@@ -59,12 +62,18 @@ export default Plugin.define({
             break
           case "session.execution.started":
           case "session.inbox.enqueued":
-          case "session.compaction.started":
             cancel(event.data.sessionID)
             break
+          case "session.compaction.started":
+            cancel(event.data.sessionID)
+            compacting.add(event.data.sessionID)
+            break
+          // After a failed compaction, wait for the next turn rather than retrying every idle period.
           case "session.compaction.ended":
+          case "session.compaction.failed":
           case "session.deleted":
             cancel(event.data.sessionID)
+            compacting.delete(event.data.sessionID)
             context.delete(event.data.sessionID)
             break
         }
