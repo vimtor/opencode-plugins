@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-idle-compaction",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenCode plugin that compacts large idle sessions before their prompt cache expires.",
   "type": "module",
   "main": "./dist/server.js",
