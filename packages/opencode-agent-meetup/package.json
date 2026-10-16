@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-agent-meetup",
+  "version": "0.0.0",
+  "description": "OpenCode plugin that lets your agent message a coworker's agent over an OpenTunnel link.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "smoke": "bun -e \"import('./dist/server.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 plugin export') })\"",
+    "pack:dry-run": "bun pm pack --dry-run",
+    "prepack": "bun run build && bun run smoke",
+    "prepublishOnly": "bun run prepack && bun run typecheck"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "collaboration",
+    "multi-agent",
+    "opentunnel",
+    "coding-agent",
+    "ai"
+  ],
+  "author": "vimtor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-plugins.git",
+    "directory": "packages/opencode-agent-meetup"
+  },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-plugins/issues"
+  },
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-agent-meetup#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.31",
+    "@opentunnel/client": "0.5.2",
+    "effect": "4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3"
+  }
+}
