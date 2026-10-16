@@ -16,7 +16,7 @@
     },
     "packages/opencode-agent-meetup": {
       "name": "opencode-agent-meetup",
-      "version": "0.0.0",
+      "version": "0.1.0",
       "dependencies": {
         "@opencode/plugin": "2.0.31",
         "@opentunnel/client": "0.5.2",
