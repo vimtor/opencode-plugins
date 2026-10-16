@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test"
 import type { Plugin } from "@opencode/plugin"
-import modelRouter from "opencode-model-router"
+import modelRouter from "opencode-auto-model"
 
 type Ref = { providerID: string; id: string; variant?: string }
 type Session = { id: string; parentID?: string; model?: Ref }

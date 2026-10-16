@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "name": "opencode-model-router",
+  "name": "opencode-auto-model",
   "version": "0.0.0",
   "description": "OpenCode plugin that adds an auto model which picks a model and variant for each new session.",
   "type": "module",
@@ -42,12 +42,12 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/vimtor/opencode-plugins.git",
-    "directory": "packages/opencode-model-router"
+    "directory": "packages/opencode-auto-model"
   },
   "bugs": {
     "url": "https://github.com/vimtor/opencode-plugins/issues"
   },
-  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-model-router#readme",
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-auto-model#readme",
   "publishConfig": {
     "access": "public",
     "provenance": true

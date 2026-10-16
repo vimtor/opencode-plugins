@@ -1,4 +1,4 @@
-# opencode-model-router
+# opencode-auto-model
 
 OpenCode plugin that adds a `router/auto` model. When a session sends its first prompt, the router picks a model and variant for it and switches the session to that model.
 
@@ -14,7 +14,7 @@ Add the package to your OpenCode config and make `router/auto` your default mode
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "router/auto",
-  "plugins": ["opencode-model-router"]
+  "plugins": ["opencode-auto-model"]
 }
 ```
 
@@ -40,7 +40,7 @@ Subagent sessions skip routing and use their parent session's model.
   "model": "router/auto",
   "plugins": [
     {
-      "package": "opencode-model-router",
+      "package": "opencode-auto-model",
       "options": {
         "models": {
           "anthropic/claude-opus-4-7#high": "hard debugging, architecture, multi-file refactors",
@@ -67,16 +67,16 @@ Subagent sessions skip routing and use their parent session's model.
 
 ## Local Development
 
-This package includes `.opencode/plugins/model-router.ts`, so OpenCode auto-loads the local source when you run it from the package directory.
+This package includes `.opencode/plugins/auto-model.ts`, so OpenCode auto-loads the local source when you run it from the package directory.
 
 From the monorepo root:
 
 ```sh
 bun install
-bun run --filter opencode-model-router build
-bun run --filter opencode-model-router typecheck
-bun run --filter opencode-model-router test
-bun run --filter opencode-model-router smoke
+bun run --filter opencode-auto-model build
+bun run --filter opencode-auto-model typecheck
+bun run --filter opencode-auto-model test
+bun run --filter opencode-auto-model smoke
 ```
 
 Restart OpenCode after changing plugin files or config.

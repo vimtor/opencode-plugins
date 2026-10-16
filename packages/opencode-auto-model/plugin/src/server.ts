@@ -48,7 +48,7 @@ const JEV_TIMEOUT = 10_000
 const LLM_TIMEOUT = 20_000
 
 export default Plugin.define({
-  id: "model-router",
+  id: "auto-model",
   async setup(ctx) {
     const models = modelOptions(ctx.options.models)
     const fallback = parseRef(ctx.options.fallback)
@@ -75,7 +75,7 @@ export default Plugin.define({
       let pending = routing.get(sessionID)
       if (!pending) {
         pending = route(sessionID, event.prompt.text)
-          .catch((error) => console.error("opencode-model-router:", error))
+          .catch((error) => console.error("opencode-auto-model:", error))
           .finally(() => routing.delete(sessionID))
         routing.set(sessionID, pending)
       }
@@ -109,7 +109,7 @@ export default Plugin.define({
       const decide = await findDecider(available)
       if (!decide) return pickFallback(available, options)
       const decision = await decide({ sessionID, text, candidates: options, efforts }).catch((error) => {
-        console.error("opencode-model-router: decider failed:", error)
+        console.error("opencode-auto-model: decider failed:", error)
         return undefined
       })
       const picked = options.find((option) => option.key === decision?.key)
