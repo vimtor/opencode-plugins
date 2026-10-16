@@ -16,6 +16,7 @@ My personal plugins for OpenCode V2 (beta).
 - [`opencode-external-tabs`](packages/opencode-external-tabs/README.md): opens sessions created by other clients as background tabs.
 - [`opencode-bubble-tabs`](packages/opencode-bubble-tabs/README.md): moves tabs to the front when a session finishes or needs your input.
 - [`opencode-idle-compaction`](packages/opencode-idle-compaction/README.md): compacts large idle sessions before their prompt cache expires.
+- [`opencode-model-router`](packages/opencode-model-router/README.md): adds an auto model that picks a model and variant on each session's first prompt.
 
 ## Development
 
