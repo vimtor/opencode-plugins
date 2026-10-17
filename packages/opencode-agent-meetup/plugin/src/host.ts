@@ -32,6 +32,7 @@ export async function startHost(input: HostInput) {
   let outbox: Message[] = []
   let seq = 0
   let closed = false
+  let reason: string | undefined
 
   const wake = () => {
     for (const waiter of waiters) waiter()
@@ -66,7 +67,7 @@ export async function startHost(input: HostInput) {
         request.once("close", done)
       })
     }
-    return { messages: outbox, closed }
+    return { messages: outbox, closed, ...(closed && reason ? { reason } : {}) }
   }
 
   const handle = async (request: IncomingMessage, response: ServerResponse) => {
@@ -124,9 +125,10 @@ export async function startHost(input: HostInput) {
       outbox.push({ seq: ++seq, text: checkText(text) })
       wake()
     },
-    async close() {
+    async close(why?: string) {
       if (closed) return
       closed = true
+      reason = why
       wake()
       await new Promise<void>((resolve) => {
         server.close(() => resolve())

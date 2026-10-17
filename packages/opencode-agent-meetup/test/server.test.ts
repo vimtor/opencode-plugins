@@ -152,6 +152,26 @@ test("only accepts plain http invites on loopback and Tailscale", async () => {
     expect((await bob.join("ses_b", invite)).error).toContain("only https URLs are allowed")
 })
 
+test("expires the meetup for both sides", async () => {
+  const { alice, bob } = await pair({ alice: { expiry: "1s" } })
+  const ended = await until(() => alice.events.find((event) => event.kind === "ended"))
+  expect(ended).toEqual({ sessionID: "ses_a", role: "none", kind: "ended", reason: "The meetup expired" })
+  expect(alice.synthetics.at(-1)).toMatchObject({ description: "Meetup expired" })
+  const guest = await until(() => bob.events.find((event) => event.kind === "ended"))
+  expect(guest.reason).toBe("The meetup expired")
+  expect(await alice.status("ses_a")).toEqual({ role: "none" })
+})
+
+test("reports the expiry when hosting", async () => {
+  expect((await (await setup({ name: "alice" })).host("ses_1")).expires).toBe("1 hour")
+  expect((await (await setup({ name: "alice", expiry: "15m" })).host("ses_2")).expires).toBe("15 minutes")
+  expect((await (await setup({ name: "alice", expiry: "never" })).host("ses_3")).expires).toBeUndefined()
+})
+
+test("rejects invalid expiry values", async () => {
+  for (const expiry of ["5d", "0m", "1.5h", 30, "597h"]) await expect(setup({ expiry })).rejects.toThrow("expiry option")
+})
+
 test("rejects unknown tunnel modes", async () => {
   await expect(setup({ tunnel: true })).rejects.toThrow('tunnel option must be one of "opentunnel", "tailscale", "local"')
 })

@@ -3,7 +3,7 @@ import { userInfo } from "node:os"
 import { Plugin } from "@opencode/plugin"
 import { joinHost } from "./guest.js"
 import { startHost } from "./host.js"
-import { cleanName, formatInvite, MAX_MESSAGE_LENGTH, parseInvite } from "./protocol.js"
+import { cleanName, formatInvite, MAX_MESSAGE_LENGTH, parseExpiry, parseInvite } from "./protocol.js"
 import { Meetup, type MeetupChanged, type MeetupResult, type MeetupRole } from "./rpc.js"
 import { expose, listenAddress, type Mode } from "./tunnel.js"
 
@@ -12,12 +12,13 @@ const SOURCE = "agent-meetup"
 // Agents that may answer each other on their own get this many turns before a user prompt resets the count.
 const MAX_WAKES = 10
 const PREVIEW_LENGTH = 400
+const EXPIRED = "The meetup expired"
 
 interface Session {
   readonly role: "host" | "guest"
   readonly peer: () => string | undefined
   readonly send: (text: string) => void | Promise<void>
-  readonly close: () => Promise<void>
+  readonly close: (reason?: string) => Promise<void>
 }
 
 function defaultName() {
@@ -68,6 +69,7 @@ export default Plugin.define({
     const name = cleanName(ctx.options.name ?? defaultName())
     const mode = parseMode(ctx.options.tunnel)
     const wake = parseBoolean("wake", ctx.options.wake, true)
+    const expiry = parseExpiry(ctx.options.expiry)
     const meetups = new Map<string, Session>()
     const wakes = new Map<string, number>()
 
@@ -152,17 +154,28 @@ export default Plugin.define({
         },
       )
       busy(sessionID)
-      meetups.set(sessionID, {
+      const session: Session = {
         role: "host",
         peer: server.peer,
         send: (text) => server.send(text),
-        close: async () => {
-          await server.close()
+        close: async (reason) => {
+          clearTimeout(timer)
+          await server.close(reason)
           await route.close()
         },
-      })
+      }
+      const timer = expiry ? setTimeout(() => void expire(sessionID, session), expiry.ms) : undefined
+      meetups.set(sessionID, session)
       emit({ sessionID, kind: "opened" })
-      return { invite: formatInvite({ url: route.url, token }) }
+      return { invite: formatInvite({ url: route.url, token }), expires: expiry?.label }
+    }
+
+    const expire = async (sessionID: string, session: Session) => {
+      if (meetups.get(sessionID) !== session) return
+      meetups.delete(sessionID)
+      await session.close(EXPIRED).catch(() => undefined)
+      notice(sessionID, "Meetup expired", `${EXPIRED}.`)
+      emit({ sessionID, kind: "ended", reason: EXPIRED })
     }
 
     const join = async (sessionID: string, invite: string) => {

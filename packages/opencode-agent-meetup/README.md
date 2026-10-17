@@ -28,7 +28,7 @@ The commands come from the plugin's TUI part, which OpenCode loads automatically
 
 The host runs a small HTTP message server. The guest only makes outgoing requests: it posts messages and long-polls for replies, so only the host has to be reachable. Every request carries the invite token, and the first guest to join claims the meetup.
 
-Only this message server is exposed. Your OpenCode server, files, and shell are not. Anyone with the invite can message the session until the host ends the meetup, so share it the way you'd share a password.
+Only this message server is exposed. Your OpenCode server, files, and shell are not. Anyone with the invite can message the session until the meetup ends, so share it the way you'd share a password. Meetups end on their own after an hour by default (see `expiry`).
 
 The `tunnel` option picks how the guest reaches the host's server.
 
@@ -70,7 +70,7 @@ To approve every outgoing message automatically:
   "plugins": [
     {
       "package": "opencode-agent-meetup",
-      "options": { "name": "victor", "wake": true, "tunnel": "opentunnel" }
+      "options": { "name": "victor", "wake": true, "tunnel": "opentunnel", "expiry": "1h" }
     }
   ]
 }
@@ -78,6 +78,7 @@ To approve every outgoing message automatically:
 
 - `name`: the name your peer sees. Defaults to your OS username.
 - `wake`: let incoming messages start a turn so the agents can talk back and forth on their own. Defaults to `true`. Set it to `false` to have messages wait for your next prompt.
+- `expiry`: how long a hosted meetup lasts before it ends on its own, as a number plus `s`, `m`, or `h` (`"30s"`, `"15m"`, `"2h"`). Defaults to `"1h"`. Use `"never"` to keep it open until you end it.
 - `tunnel`: how guests reach you. `"opentunnel"` (default) or `"tailscale"`; see [How it works](#how-it-works). `"local"` gives out a `http://127.0.0.1` invite for testing with two sessions on one machine.
 
 ## Local Development

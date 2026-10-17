@@ -52,7 +52,9 @@ export default Plugin.define({
           "",
           result.invite,
           "",
-          "Anyone with it can message this session until you end it.",
+          result.expires
+            ? `Anyone with it can message this session for ${result.expires}.`
+            : "Anyone with it can message this session until you end it.",
         ].join("\n"),
         label: { confirm: "Copy", cancel: "Close" },
       })

@@ -77,12 +77,13 @@ test("asks the server for the session's role and shows matching commands", async
 
 test("offers host and join outside a meetup, then end once hosting", async () => {
   const invite = "https://abc.tunnel.opentunnel.xyz/#token"
-  const { run, slashes, confirms, copied, toasts } = await harness({ copy: true, results: { status: { role: "none" }, host: { invite } } })
+  const { run, slashes, confirms, copied, toasts } = await harness({ copy: true, results: { status: { role: "none" }, host: { invite, expires: "1 hour" } } })
   await Bun.sleep(0)
   expect(slashes()).toEqual(["meetup-host", "meetup-join"])
   await run("meetup-host")
   expect(confirms[0]).toMatchObject({ title: "Meetup open", label: { confirm: "Copy", cancel: "Close" } })
   expect(confirms[0]!.message).toContain(invite)
+  expect(confirms[0]!.message).toContain("Anyone with it can message this session for 1 hour.")
   expect(copied).toEqual([invite])
   expect(toasts.map((toast) => toast.message)).toEqual(["Invite copied."])
   expect(slashes()).toEqual(["meetup-end"])

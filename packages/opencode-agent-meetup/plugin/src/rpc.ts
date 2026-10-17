@@ -21,7 +21,7 @@ export const Meetup = Rpc.define({
   id: "agent-meetup",
   methods: {
     status: { input: session, output: result({ role, peer: { type: "string" } }) },
-    host: { input: session, output: result({ invite: { type: "string" } }) },
+    host: { input: session, output: result({ invite: { type: "string" }, expires: { type: "string" } }) },
     join: {
       input: {
         type: "object",
@@ -53,7 +53,7 @@ export const Meetup = Rpc.define({
 
 export type MeetupRole = "host" | "guest" | "none"
 
-export type MeetupResult = { error?: string; invite?: string; peer?: string; role?: MeetupRole }
+export type MeetupResult = { error?: string; invite?: string; expires?: string; peer?: string; role?: MeetupRole }
 
 export type MeetupChanged = {
   sessionID: string

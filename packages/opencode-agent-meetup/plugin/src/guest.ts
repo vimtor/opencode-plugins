@@ -60,7 +60,7 @@ export async function joinHost(input: GuestInput) {
           after = message.seq
           input.onMessage(peer, message.text)
         }
-        if (poll.closed) return end(`${peer} ended the meetup`)
+        if (poll.closed) return end(poll.reason ?? `${peer} ended the meetup`)
       } catch {
         if (controller.signal.aborted) return
         if (++failures >= MAX_FAILURES) return end(`Lost connection to ${peer}`)
