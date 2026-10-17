@@ -53,6 +53,7 @@ export default Plugin.define({
     const models = modelOptions(ctx.options.models)
     const fallback = parseRef(ctx.options.fallback)
     const decider = parseRef(ctx.options.decider)
+    const name = typeof ctx.options.name === "string" ? ctx.options.name : "Auto"
     const routing = new Map<string, Promise<void>>()
 
     await ctx.provider.transform((providers) => {
@@ -60,13 +61,13 @@ export default Plugin.define({
       providers.add({
         info: {
           id: providerID,
-          name: "Model Router",
+          name: "",
           activation: "enabled",
           package: "@opencode/ai/providers/openai-compatible",
           // Never called: sessions switch to the picked model before their first request.
           settings: { baseURL: "http://127.0.0.1:9/v1", apiKey: "" },
         },
-        models: [{ ...Model.Info.default(providerID, Model.ID.make(MODEL_ID)), name: "Auto" }],
+        models: [{ ...Model.Info.default(providerID, Model.ID.make(MODEL_ID)), name }],
       })
     })
 

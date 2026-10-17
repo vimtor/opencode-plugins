@@ -18,7 +18,7 @@ Add the package to your OpenCode config and make `router/auto` your default mode
 }
 ```
 
-OpenCode installs npm plugins automatically at startup. You can also pick **Auto** under **Model Router** in the model list.
+OpenCode installs npm plugins automatically at startup. You can also pick **Auto** in the model list.
 
 ## Use
 
@@ -57,6 +57,7 @@ Subagent sessions skip routing and use their parent session's model.
 - `models` maps each model the router may pick to when to use it. Keys are `provider/model` references; `#variant` pins a variant, while a key without one lets the router pick the variant. Leave a description empty to describe the model by its name, price, and context size. Without `models`, every available model is a candidate.
 - `fallback` is the model to use when the decision model fails or is unavailable. Defaults to the first model in `models`, or the newest available model.
 - `decider` overrides the decision model, such as `openai/gpt-6-luna#none`. Use `opencode/jev-1.13` or `openrouter/typesafe/jev-1.14` to pin a Jev version.
+- `name` is the model's name in the model picker. Defaults to `Auto`. It has no provider heading.
 
 ## Caveats
 

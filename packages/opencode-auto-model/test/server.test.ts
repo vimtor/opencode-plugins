@@ -109,9 +109,14 @@ test("registers the router/auto model", async () => {
   const harness = await setup({})
   expect(harness.providers).toHaveLength(1)
   expect(harness.providers[0]).toMatchObject({
-    info: { id: "router", activation: "enabled" },
+    info: { id: "router", name: "", activation: "enabled" },
     models: [{ providerID: "router", id: "auto", name: "Auto" }],
   })
+})
+
+test("uses a custom model name", async () => {
+  const harness = await setup({ options: { name: "Auto Model" } })
+  expect(harness.providers[0]).toMatchObject({ info: { name: "" }, models: [{ name: "Auto Model" }] })
 })
 
 test("routes the first prompt with Jev through the Console connection", async () => {
