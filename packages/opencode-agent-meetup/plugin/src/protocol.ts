@@ -18,6 +18,14 @@ export interface Invite {
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"])
 
+// Tailscale addresses come from 100.64.0.0/10, and MagicDNS names end in .ts.net. WireGuard already
+// encrypts that traffic, so plain http is fine there.
+export function isTailscale(hostname: string) {
+  if (hostname.endsWith(".ts.net")) return true
+  const parts = hostname.split(".").map(Number)
+  return parts.length === 4 && parts.every((part) => Number.isInteger(part)) && parts[0] === 100 && parts[1]! >= 64 && parts[1]! <= 127
+}
+
 export function formatInvite(invite: Invite) {
   return `${invite.url}/#${invite.token}`
 }
@@ -31,8 +39,8 @@ export function parseInvite(value: string): Invite {
   }
   const token = url.hash.slice(1)
   if (!token) throw new Error("Invalid meetup invite: missing token after #")
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && LOOPBACK.has(url.hostname)))
-    throw new Error("Invalid meetup invite: only https URLs are allowed, except on loopback")
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && (LOOPBACK.has(url.hostname) || isTailscale(url.hostname))))
+    throw new Error("Invalid meetup invite: only https URLs are allowed, except on loopback and Tailscale")
   return { url: url.origin, token }
 }
 

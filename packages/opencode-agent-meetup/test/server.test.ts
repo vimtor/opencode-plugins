@@ -5,7 +5,7 @@ import meetup, { formatIncoming, preview } from "opencode-agent-meetup"
 import type { MeetupChanged, MeetupResult } from "opencode-agent-meetup/rpc"
 
 type Synthetic = { sessionID: string; description?: string; text: string; resume?: boolean; metadata?: Record<string, unknown> }
-type Handlers = Record<"host" | "join" | "leave", (input: unknown) => Promise<MeetupResult>>
+type Handlers = Record<"status" | "host" | "join" | "leave", (input: unknown) => Promise<MeetupResult>>
 
 const cleanups: Array<() => Promise<void>> = []
 afterEach(async () => {
@@ -20,7 +20,7 @@ async function setup(options: Record<string, unknown>) {
   let prompt: ((event: { sessionID: string }) => void) | undefined
   let tool: Info | undefined
   const cleanup = await meetup.setup({
-    options: { tunnel: false, ...options },
+    options: { tunnel: "local", ...options },
     rpc: {
       register: async (_definition: unknown, implementation: Handlers) => {
         handlers = implementation
@@ -54,6 +54,7 @@ async function setup(options: Record<string, unknown>) {
     permissions,
     events,
     send,
+    status: (sessionID: string) => handlers!.status({ sessionID }),
     host: (sessionID: string) => handlers!.host({ sessionID }),
     join: (sessionID: string, invite: string) => handlers!.join({ sessionID, invite }),
     leave: (sessionID: string) => handlers!.leave({ sessionID }),
@@ -83,8 +84,11 @@ async function pair(options: { alice?: Record<string, unknown>; bob?: Record<str
 
 test("relays messages both ways and wakes the receiving agent", async () => {
   const { alice, bob } = await pair()
-  expect(alice.events).toContainEqual({ sessionID: "ses_a", kind: "joined", peer: "bob" })
-  expect(bob.events).toContainEqual({ sessionID: "ses_b", kind: "joined", peer: "alice" })
+  expect(alice.events).toContainEqual({ sessionID: "ses_a", role: "host", kind: "opened" })
+  expect(alice.events).toContainEqual({ sessionID: "ses_a", role: "host", kind: "joined", peer: "bob" })
+  expect(bob.events).toContainEqual({ sessionID: "ses_b", role: "guest", kind: "joined", peer: "alice" })
+  expect(await alice.status("ses_a")).toEqual({ role: "host", peer: "bob" })
+  expect(await bob.status("ses_b")).toEqual({ role: "guest", peer: "alice" })
 
   await bob.send("ses_b", "hi from bob")
   expect(bob.permissions.at(-1)).toMatchObject({ action: "meetup_send", resources: ["alice"], sessionID: "ses_b" })
@@ -96,16 +100,20 @@ test("relays messages both ways and wakes the receiving agent", async () => {
   const reply = await until(() => bob.synthetics.find((message) => message.metadata?.peer === "alice"))
   expect(reply.text).toContain("hello from alice")
 
-  expect(await bob.leave("ses_b")).toEqual({ left: true })
+  expect(await bob.leave("ses_b")).toEqual({ role: "guest" })
+  expect(bob.events.at(-1)).toEqual({ sessionID: "ses_b", role: "none", kind: "closed" })
+  expect(await bob.status("ses_b")).toEqual({ role: "none" })
   await until(() => alice.events.find((event) => event.kind === "left"))
+  expect(alice.events.at(-1)).toMatchObject({ role: "host", kind: "left", peer: "bob" })
   await expect(bob.send("ses_b", "still there?")).rejects.toThrow("no meetup")
 })
 
 test("tells the guest when the host leaves", async () => {
   const { alice, bob } = await pair()
-  await alice.leave("ses_a")
+  expect(await alice.leave("ses_a")).toEqual({ role: "host" })
+  expect(alice.synthetics.at(-1)).toMatchObject({ description: "You ended the meetup" })
   const ended = await until(() => bob.events.find((event) => event.kind === "ended"))
-  expect(ended.reason).toBe("alice ended the meetup")
+  expect(ended).toEqual({ sessionID: "ses_b", role: "none", kind: "ended", reason: "alice ended the meetup" })
 })
 
 test("pauses auto-replies after ten wakes until the user prompts", async () => {
@@ -114,7 +122,7 @@ test("pauses auto-replies after ten wakes until the user prompts", async () => {
   await until(() => (alice.synthetics.filter((message) => message.metadata?.peer === "bob").length === 11 ? true : undefined))
   const resumes = alice.synthetics.filter((message) => message.metadata?.peer === "bob").map((message) => message.resume)
   expect(resumes).toEqual([...Array(10).fill(true), false])
-  expect(alice.events).toContainEqual({ sessionID: "ses_a", kind: "paused", peer: "bob" })
+  expect(alice.events).toContainEqual({ sessionID: "ses_a", role: "host", kind: "paused", peer: "bob" })
 
   alice.prompt("ses_a")
   await bob.send("ses_b", "after prompt")
@@ -135,12 +143,17 @@ test("returns errors for a second guest, bad tokens, and busy sessions", async (
   expect(await carol.join("ses_c", invite)).toEqual({ error: "Someone already joined this meetup" })
   expect(await carol.join("ses_c", invite.replace(/#.*/, "#wrong"))).toEqual({ error: "Invalid meetup token" })
   expect(await alice.host("ses_a")).toEqual({ error: "This session is already in a meetup. Leave it first." })
-  expect(await carol.leave("ses_c")).toEqual({ left: false })
+  expect(await carol.leave("ses_c")).toEqual({ role: "none" })
 })
 
-test("only accepts https invites outside loopback", async () => {
+test("only accepts plain http invites on loopback and Tailscale", async () => {
   const bob = await setup({ name: "bob" })
-  expect((await bob.join("ses_b", "http://example.com/#token")).error).toContain("only https URLs are allowed")
+  for (const invite of ["http://example.com/#token", "http://100.128.0.1:4000/#token", "http://10.0.0.1:4000/#token"])
+    expect((await bob.join("ses_b", invite)).error).toContain("only https URLs are allowed")
+})
+
+test("rejects unknown tunnel modes", async () => {
+  await expect(setup({ tunnel: true })).rejects.toThrow('tunnel option must be one of "opentunnel", "tailscale", "local"')
 })
 
 test("fences peer text and previews it on one line", () => {

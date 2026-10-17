@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net"
 import { checkText, cleanName, MAX_MESSAGE_LENGTH, POLL_TIMEOUT_MS, type Message, type Poll } from "./protocol.js"
 
 export interface HostInput {
+  readonly hostname: string
   readonly name: string
   readonly token: string
   readonly onJoin: (peer: string) => void
@@ -111,7 +112,7 @@ export async function startHost(input: HostInput) {
   })
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject)
-    server.listen(0, "127.0.0.1", () => resolve())
+    server.listen(0, input.hostname, () => resolve())
   })
 
   return {

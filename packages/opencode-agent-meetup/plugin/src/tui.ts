@@ -1,22 +1,27 @@
 import { Plugin } from "@opencode/plugin/tui"
-import type { ToastOptions } from "@opencode/plugin/tui/context"
-import { Meetup, type MeetupChanged, type MeetupResult } from "./rpc.js"
+import type { KeymapCommand, ToastOptions } from "@opencode/plugin/tui/context"
+import { createEffect } from "solid-js"
+import { Meetup, type MeetupChanged, type MeetupResult, type MeetupRole } from "./rpc.js"
+
+const SLOW_HOST_MS = 1_000
 
 export default Plugin.define({
   id: "agent-meetup",
   setup(ctx) {
     const meetup = ctx.client.rpc(Meetup)
+    const [roles, updateRoles] = ctx.storage.memory("roles", { initial: {} as Record<string, MeetupRole> })
+    const setRole = (sessionID: string, role: MeetupRole) => updateRoles((draft) => void (draft[sessionID] = role))
     const toast = (options: ToastOptions) => ctx.ui.toast.show({ title: "Meetup", ...options })
 
-    async function current() {
+    const sessionID = () => {
       const route = ctx.ui.router.current()
-      if (route.type !== "session") {
-        toast({ variant: "warning", message: "Open a session first." })
-        return
-      }
-      if (!ctx.data.session.get(route.sessionID)) await ctx.data.session.sync(route.sessionID)
-      const location = ctx.data.session.get(route.sessionID)?.location
-      return { sessionID: route.sessionID, options: location ? { location } : undefined }
+      return route.type === "session" ? route.sessionID : undefined
+    }
+
+    async function target(id: string) {
+      if (!ctx.data.session.get(id)) await ctx.data.session.sync(id)
+      const location = ctx.data.session.get(id)?.location
+      return location ? { location } : undefined
     }
 
     function failed(result: MeetupResult) {
@@ -25,101 +30,104 @@ export default Plugin.define({
       return true
     }
 
-    async function host() {
-      const target = await current()
-      if (!target) return
-      toast({ message: "Opening a tunnel. The first time can take a minute.", duration: 60_000 })
-      const result = (await meetup.host({ sessionID: target.sessionID }, target.options)) as MeetupResult
+    async function refresh(id: string) {
+      const result = (await meetup.status({ sessionID: id }, await target(id))) as MeetupResult
+      if (result.role) setRole(id, result.role)
+    }
+
+    async function host(id: string) {
+      const options = await target(id)
+      // Tailscale and an existing tunnel answer at once; only a new OpenTunnel tunnel is worth a heads-up.
+      const slow = setTimeout(
+        () => toast({ message: "Opening a tunnel. The first time can take a minute.", duration: 60_000 }),
+        SLOW_HOST_MS,
+      )
+      const result = (await meetup.host({ sessionID: id }, options).finally(() => clearTimeout(slow))) as MeetupResult
       if (failed(result) || !result.invite) return
-      const copied = ctx.renderer.copyToClipboardOSC52?.(result.invite) === true
-      toast({ variant: "success", message: copied ? "Meetup open. Invite copied to the clipboard." : "Meetup open." })
-      await ctx.ui.dialog.alert({
+      setRole(id, "host")
+      const copy = await ctx.ui.dialog.confirm({
         title: "Meetup open",
         message: [
-          "Share this invite with one coworker. They run /meetup-join and paste it.",
+          "Share with one coworker; they join with /meetup-join.",
           "",
           result.invite,
           "",
-          "Anyone with the invite can message this session until you run /meetup-leave.",
+          "Anyone with it can message this session until you end it.",
         ].join("\n"),
+        label: { confirm: "Copy", cancel: "Close" },
       })
+      if (!copy) return
+      if (ctx.renderer.copyToClipboardOSC52?.(result.invite)) toast({ variant: "success", message: "Invite copied." })
+      else toast({ variant: "warning", message: "This terminal doesn't support copying. Select the invite instead." })
     }
 
-    async function join(argument?: string) {
-      const target = await current()
-      if (!target) return
-      const invite =
-        argument?.trim() ||
-        (await ctx.ui.dialog.prompt({
+    async function join(id: string) {
+      const invite = (
+        await ctx.ui.dialog.prompt({
           title: "Join a meetup",
           description: "Paste the invite your coworker shared.",
           placeholder: "https://….opentunnel.xyz/#…",
-        }))?.trim()
+        })
+      )?.trim()
       if (!invite) return
-      const result = (await meetup.join({ sessionID: target.sessionID, invite }, target.options)) as MeetupResult
+      const result = (await meetup.join({ sessionID: id, invite }, await target(id))) as MeetupResult
       if (failed(result)) return
+      setRole(id, "guest")
       toast({ variant: "success", message: `Joined ${result.peer}'s meetup.` })
     }
 
-    async function leave() {
-      const target = await current()
-      if (!target) return
-      const result = (await meetup.leave({ sessionID: target.sessionID }, target.options)) as MeetupResult
+    async function leave(id: string) {
+      const result = (await meetup.leave({ sessionID: id }, await target(id))) as MeetupResult
       if (failed(result)) return
-      toast({ message: result.left ? "You left the meetup." : "This session has no meetup." })
+      setRole(id, "none")
+      if (result.role === "host") toast({ message: "Meetup ended." })
+      if (result.role === "guest") toast({ message: "You left the meetup." })
     }
 
-    const run = (action: () => Promise<void>) => () =>
-      action().catch((error: unknown) => {
+    const run = (action: (id: string) => Promise<void>) => () => {
+      const id = sessionID()
+      if (!id) return toast({ variant: "warning", message: "Open a session first." })
+      action(id).catch((error: unknown) => {
         toast({ variant: "error", message: error instanceof Error ? error.message : String(error) })
       })
+    }
 
     const stopChanged = meetup.events.on("changed", (event) => {
       const data = event.data as MeetupChanged
+      setRole(data.sessionID, data.role)
       const title = ctx.data.session.get(data.sessionID)?.title
       const suffix = title ? ` in ${title}` : ""
-      if (data.kind === "joined") toast({ variant: "success", message: `${data.peer} joined the meetup${suffix}.` })
+      if (data.kind === "joined" && data.role === "host")
+        toast({ variant: "success", message: `${data.peer} joined the meetup${suffix}.` })
       if (data.kind === "left") toast({ variant: "warning", message: `${data.peer} left the meetup${suffix}.` })
       if (data.kind === "ended") toast({ variant: "warning", message: `${data.reason ?? "Meetup ended"}${suffix}.` })
       if (data.kind === "paused")
-        toast({
-          variant: "warning",
-          message: `Paused auto-replies to ${data.peer}${suffix}. Send a prompt to let the agents continue.`,
-        })
+        toast({ variant: "warning", message: `Paused auto-replies to ${data.peer}${suffix}. Send a prompt to resume.` })
     })
+
+    const commands = (role: MeetupRole | undefined): KeymapCommand[] => {
+      if (role === "host")
+        return [{ id: "agent-meetup.end", title: "End the meetup", group: "Meetup", palette: true, slash: { name: "meetup-end" }, run: run(leave) }]
+      if (role === "guest")
+        return [{ id: "agent-meetup.leave", title: "Leave the meetup", group: "Meetup", palette: true, slash: { name: "meetup-leave" }, run: run(leave) }]
+      return [
+        { id: "agent-meetup.host", title: "Host a meetup", group: "Meetup", palette: true, slash: { name: "meetup-host" }, run: run(host) },
+        { id: "agent-meetup.join", title: "Join a meetup", group: "Meetup", palette: true, slash: { name: "meetup-join" }, run: run(join) },
+      ]
+    }
 
     const stopSlot = ctx.ui.slot({
       append: "app",
       render() {
-        ctx.keymap.layer(() => ({
-          mode: "global",
-          commands: [
-            {
-              id: "agent-meetup.host",
-              title: "Host a meetup",
-              group: "Meetup",
-              palette: true,
-              slash: { name: "meetup-host" },
-              run: run(host),
-            },
-            {
-              id: "agent-meetup.join",
-              title: "Join a meetup",
-              group: "Meetup",
-              palette: true,
-              slash: { name: "meetup-join", arguments: true },
-              run: (input?: string) => run(() => join(input))(),
-            },
-            {
-              id: "agent-meetup.leave",
-              title: "Leave the meetup",
-              group: "Meetup",
-              palette: true,
-              slash: { name: "meetup-leave" },
-              run: run(leave),
-            },
-          ],
-        }))
+        // A TUI that starts while the server already has a meetup learns the role on first visit.
+        createEffect(() => {
+          const id = sessionID()
+          if (id && roles[id] === undefined) void refresh(id).catch(() => undefined)
+        })
+        ctx.keymap.layer(() => {
+          const id = sessionID()
+          return { mode: "global", commands: commands(id ? roles[id] : undefined) }
+        })
         return null
       },
     })

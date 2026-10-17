@@ -7,6 +7,8 @@ const session = {
   additionalProperties: false,
 } as const
 
+const role = { type: "string", enum: ["host", "guest", "none"] } as const
+
 // Expected failures come back as `error` instead of RPC errors so the TUI can show them as-is.
 const result = (properties: Record<string, unknown>) =>
   ({
@@ -18,6 +20,7 @@ const result = (properties: Record<string, unknown>) =>
 export const Meetup = Rpc.define({
   id: "agent-meetup",
   methods: {
+    status: { input: session, output: result({ role, peer: { type: "string" } }) },
     host: { input: session, output: result({ invite: { type: "string" } }) },
     join: {
       input: {
@@ -28,7 +31,7 @@ export const Meetup = Rpc.define({
       },
       output: result({ peer: { type: "string" } }),
     },
-    leave: { input: session, output: result({ left: { type: "boolean" } }) },
+    leave: { input: session, output: result({ role }) },
   },
   events: {
     changed: {
@@ -36,22 +39,26 @@ export const Meetup = Rpc.define({
         type: "object",
         properties: {
           sessionID: { type: "string" },
-          kind: { type: "string", enum: ["joined", "left", "ended", "paused"] },
+          role,
+          kind: { type: "string", enum: ["opened", "joined", "left", "ended", "closed", "paused"] },
           peer: { type: "string" },
           reason: { type: "string" },
         },
-        required: ["sessionID", "kind"],
+        required: ["sessionID", "role", "kind"],
         additionalProperties: false,
       },
     },
   },
 })
 
-export type MeetupResult = { error?: string; invite?: string; peer?: string; left?: boolean }
+export type MeetupRole = "host" | "guest" | "none"
+
+export type MeetupResult = { error?: string; invite?: string; peer?: string; role?: MeetupRole }
 
 export type MeetupChanged = {
   sessionID: string
-  kind: "joined" | "left" | "ended" | "paused"
+  role: MeetupRole
+  kind: "opened" | "joined" | "left" | "ended" | "closed" | "paused"
   peer?: string
   reason?: string
 }

@@ -4,8 +4,8 @@ import { Plugin } from "@opencode/plugin"
 import { joinHost } from "./guest.js"
 import { startHost } from "./host.js"
 import { cleanName, formatInvite, MAX_MESSAGE_LENGTH, parseInvite } from "./protocol.js"
-import { Meetup, type MeetupChanged, type MeetupResult } from "./rpc.js"
-import { loopback, openTunnel } from "./tunnel.js"
+import { Meetup, type MeetupChanged, type MeetupResult, type MeetupRole } from "./rpc.js"
+import { expose, listenAddress, type Mode } from "./tunnel.js"
 
 const TOOL_ID = "meetup_send"
 const SOURCE = "agent-meetup"
@@ -34,6 +34,14 @@ function parseBoolean(name: string, value: unknown, fallback: boolean) {
   return value
 }
 
+const MODES: readonly Mode[] = ["opentunnel", "tailscale", "local"]
+
+function parseMode(value: unknown): Mode {
+  if (value === undefined) return "opentunnel"
+  if (MODES.includes(value as Mode)) return value as Mode
+  throw new Error(`opencode-agent-meetup tunnel option must be one of ${MODES.map((mode) => `"${mode}"`).join(", ")}`)
+}
+
 function message(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
@@ -58,12 +66,18 @@ export default Plugin.define({
   id: "agent-meetup",
   async setup(ctx) {
     const name = cleanName(ctx.options.name ?? defaultName())
-    const tunnel = parseBoolean("tunnel", ctx.options.tunnel, true)
+    const mode = parseMode(ctx.options.tunnel)
     const wake = parseBoolean("wake", ctx.options.wake, true)
     const meetups = new Map<string, Session>()
     const wakes = new Map<string, number>()
 
+    const role = (sessionID: string): MeetupRole => meetups.get(sessionID)?.role ?? "none"
+
     const registration = await ctx.rpc.register(Meetup, {
+      status: async (input) => {
+        const meetup = meetups.get((input as { sessionID: string }).sessionID)
+        return { role: meetup?.role ?? "none", peer: meetup?.peer() }
+      },
       host: async (input) => attempt(() => host((input as { sessionID: string }).sessionID)),
       join: async (input) => {
         const { sessionID, invite } = input as { sessionID: string; invite: string }
@@ -72,7 +86,8 @@ export default Plugin.define({
       leave: async (input) => attempt(() => leave((input as { sessionID: string }).sessionID)),
     })
 
-    const emit = (event: MeetupChanged) => void registration.events.emit("changed", event).catch(() => undefined)
+    const emit = (event: Omit<MeetupChanged, "role">) =>
+      void registration.events.emit("changed", { ...event, role: role(event.sessionID) }).catch(() => undefined)
 
     const notice = (sessionID: string, description: string, text: string) =>
       void ctx.session
@@ -118,7 +133,9 @@ export default Plugin.define({
     const host = async (sessionID: string) => {
       busy(sessionID)
       const token = randomBytes(24).toString("base64url")
+      const hostname = await listenAddress(mode)
       const server = await startHost({
+        hostname,
         name,
         token,
         onJoin: (peer) => joined(sessionID, peer),
@@ -128,7 +145,7 @@ export default Plugin.define({
           emit({ sessionID, kind: "left", peer })
         },
       })
-      const route = await (tunnel ? openTunnel(server.port) : Promise.resolve(loopback(server.port))).catch(
+      const route = await expose(mode, hostname, server.port).catch(
         async (error: unknown) => {
           await server.close()
           throw error
@@ -144,6 +161,7 @@ export default Plugin.define({
           await route.close()
         },
       })
+      emit({ sessionID, kind: "opened" })
       return { invite: formatInvite({ url: route.url, token }) }
     }
 
@@ -167,10 +185,13 @@ export default Plugin.define({
 
     const leave = async (sessionID: string) => {
       const meetup = meetups.get(sessionID)
+      if (!meetup) return { role: "none" as const }
       meetups.delete(sessionID)
-      await meetup?.close()
-      if (meetup) notice(sessionID, "You left the meetup", "The user left the meetup.")
-      return { left: meetup !== undefined }
+      await meetup.close()
+      if (meetup.role === "host") notice(sessionID, "You ended the meetup", "The user ended the meetup.")
+      else notice(sessionID, "You left the meetup", "The user left the meetup.")
+      emit({ sessionID, kind: "closed" })
+      return { role: meetup.role }
     }
 
     await ctx.session.hook("prompt", (event) => {

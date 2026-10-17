@@ -15,22 +15,36 @@ Requires OpenCode V2 2.0.31 or later.
 
 ## Use
 
-1. In the session you want to share, run `/meetup-host`. The plugin shows an invite like `https://<route>.<id>.opentunnel.xyz/#<token>` and copies it to the clipboard when the terminal allows it.
-2. Send the invite to your coworker. In their session, they run `/meetup-join` and paste it into the dialog (or pass it inline: `/meetup-join <invite>`).
+1. In the session you want to share, run `/meetup-host`. A dialog shows the invite, with a **Copy** button.
+2. Send the invite to your coworker. In their session, they run `/meetup-join` and paste it into the dialog.
 3. Either agent can now call `meetup_send` to message the other. You approve every outgoing message. Incoming messages show up in the session as `<peer>: <message>` and start a turn, so the other agent answers on its own.
-4. Run `/meetup-leave` to end it. Unloading the plugin also ends every meetup.
+4. The host runs `/meetup-end` to close the meetup. The guest runs `/meetup-leave` to drop out; the invite keeps working until the host ends it. Unloading the plugin also ends every meetup.
 
-Joins, leaves, and failures show as toasts. Each meetup belongs to one session and allows one guest.
+The commands follow the session's state: `/meetup-host` and `/meetup-join` outside a meetup, `/meetup-end` while hosting, `/meetup-leave` while joined. Joins, leaves, and failures show as toasts. Each meetup belongs to one session and allows one guest.
 
 The commands come from the plugin's TUI part, which OpenCode loads automatically with the package.
 
 ## How it works
 
-The host runs a small HTTP server on `127.0.0.1` and exposes it through [OpenTunnel](https://github.com/anomalyco/opentunnel). It claims a random route on the device's tunnel, the same tunnel `opencode pair --remote` uses. TLS ends on the host's machine, so the relay can't read the messages. The guest only makes outgoing requests and long-polls for replies, so only the host is reachable from the internet.
+The host runs a small HTTP message server. The guest only makes outgoing requests: it posts messages and long-polls for replies, so only the host has to be reachable. Every request carries the invite token, and the first guest to join claims the meetup.
 
-The tunnel only reaches this plugin's message server. Your OpenCode server, files, and shell are not exposed. Anyone with the invite can message the session until you leave, so share it the way you'd share a password.
+Only this message server is exposed. Your OpenCode server, files, and shell are not. Anyone with the invite can message the session until the host ends the meetup, so share it the way you'd share a password.
+
+The `tunnel` option picks how the guest reaches the host's server.
+
+### OpenTunnel (default)
+
+For coworkers anywhere. The server listens on `127.0.0.1`, and the plugin claims a random route on the device's [OpenTunnel](https://github.com/anomalyco/opentunnel) tunnel, the same tunnel `opencode pair --remote` uses. The invite looks like `https://<route>.<id>.opentunnel.xyz/#<token>`.
+
+TLS ends on the host's machine, so the OpenTunnel relay can't read the messages. The random route keeps the URL hard to guess, but the token is what grants access.
 
 The first `/meetup-host` on a machine creates the tunnel and its certificate, which can take about a minute.
+
+### Tailscale
+
+For devices on the same tailnet. The server listens only on this device's Tailscale address (from `tailscale ip -4`), so nothing outside your tailnet can reach it. The invite looks like `http://100.x.y.z:<port>/#<token>`.
+
+It's plain http because Tailscale already encrypts traffic between devices. The guest accepts http invites only for loopback and Tailscale addresses (`100.64.0.0/10` and `*.ts.net`); everything else must be https. Both devices need Tailscale connected, and the host needs the `tailscale` CLI (the macOS app's bundled CLI works too).
 
 ## Trust
 
@@ -56,7 +70,7 @@ To approve every outgoing message automatically:
   "plugins": [
     {
       "package": "opencode-agent-meetup",
-      "options": { "name": "victor", "wake": true, "tunnel": true }
+      "options": { "name": "victor", "wake": true, "tunnel": "opentunnel" }
     }
   ]
 }
@@ -64,11 +78,11 @@ To approve every outgoing message automatically:
 
 - `name`: the name your peer sees. Defaults to your OS username.
 - `wake`: let incoming messages start a turn so the agents can talk back and forth on their own. Defaults to `true`. Set it to `false` to have messages wait for your next prompt.
-- `tunnel`: set to `false` to skip OpenTunnel and give out a `http://127.0.0.1` invite. Useful for testing with two sessions on one machine.
+- `tunnel`: how guests reach you. `"opentunnel"` (default) or `"tailscale"`; see [How it works](#how-it-works). `"local"` gives out a `http://127.0.0.1` invite for testing with two sessions on one machine.
 
 ## Local Development
 
-This package includes `.opencode/plugins/agent-meetup.ts`, so OpenCode loads the local source when you run it from the package directory.
+This package includes `.opencode/plugins/agent-meetup/`, so OpenCode loads the local source when you run it from the package directory.
 
 ```sh
 bun install
