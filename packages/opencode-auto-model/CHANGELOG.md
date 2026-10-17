@@ -1,5 +1,11 @@
 # opencode-auto-model
 
+## 0.2.0
+
+### Minor Changes
+
+- ba90f7d: Show the model as `Auto` with no provider heading, and add a `name` option to rename it.
+
 ## 0.1.0
 
 ### Minor Changes

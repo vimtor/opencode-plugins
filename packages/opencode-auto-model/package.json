@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-auto-model",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "OpenCode plugin that adds an auto model which picks a model and variant for each new session.",
   "type": "module",
   "main": "./dist/server.js",
