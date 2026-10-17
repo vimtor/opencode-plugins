@@ -100,7 +100,7 @@ test("join asks for the invite and switches to leave", async () => {
   const { run, prompts, calls, toasts, slashes } = await harness({ prompt: " https://x/#t ", results: { join: { peer: "alice" } } })
   await run("meetup-join")
   expect(prompts[0]!.title).toBe("Join a meetup")
-  expect(calls.find((call) => call[0] === "join")).toMatchObject(["join", { sessionID: "ses_a", invite: "https://x/#t" }])
+  expect(calls.find((call) => call[0] === "join")?.[1]).toEqual({ sessionID: "ses_a", invite: "https://x/#t" })
   expect(toasts.at(-1)).toMatchObject({ variant: "success", message: "Joined alice's meetup." })
   expect(slashes()).toEqual(["meetup-leave"])
 })

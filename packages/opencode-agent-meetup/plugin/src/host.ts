@@ -3,6 +3,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net"
 import { checkText, cleanName, MAX_MESSAGE_LENGTH, POLL_TIMEOUT_MS, type Message, type Poll } from "./protocol.js"
 
+const CLOSE_GRACE_MS = 2_000
+
 export interface HostInput {
   readonly hostname: string
   readonly name: string
@@ -33,6 +35,9 @@ export async function startHost(input: HostInput) {
   let seq = 0
   let closed = false
   let reason: string | undefined
+  // Resolves once the guest has seen that the meetup closed, so close() doesn't shut the server first.
+  let notified: () => void = () => {}
+  const told = new Promise<void>((resolve) => (notified = resolve))
 
   const wake = () => {
     for (const waiter of waiters) waiter()
@@ -67,6 +72,7 @@ export async function startHost(input: HostInput) {
         request.once("close", done)
       })
     }
+    if (closed) notified()
     return { messages: outbox, closed, ...(closed && reason ? { reason } : {}) }
   }
 
@@ -130,6 +136,7 @@ export async function startHost(input: HostInput) {
       closed = true
       reason = why
       wake()
+      if (guest) await Promise.race([told, new Promise((resolve) => setTimeout(resolve, CLOSE_GRACE_MS).unref())])
       await new Promise<void>((resolve) => {
         server.close(() => resolve())
         server.closeIdleConnections()
