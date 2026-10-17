@@ -30,19 +30,16 @@ function mount(ctx: Plugin.Context, prompt: Prompt) {
     visible: false,
     zIndex: 100,
     flexDirection: "column",
-    border: ["left", "right"],
-    borderColor: ctx.theme.border.default,
-    customBorderChars: {
-      topLeft: "", bottomLeft: "", topRight: "", bottomRight: "",
-      horizontal: " ", vertical: "┃", bottomT: "", topT: "", cross: "", leftT: "", rightT: "",
-    },
+    border: true,
+    borderColor: ctx.theme.border.base,
   })
   const list = new ScrollBoxRenderable(ctx.renderer, {
     width: "100%",
-    scrollbarOptions: { visible: false },
     scrollX: false,
     focusable: false,
   })
+  // Set visibility after construction so overflow cannot re-enable the bars.
+  list.scrollbarOptions = { visible: false }
   popup.add(list)
 
   let editor: EditBufferRenderable | undefined
@@ -76,15 +73,16 @@ function mount(ctx: Plugin.Context, prompt: Prompt) {
   function position() {
     if (!popup.visible || !anchor) return
     const available = Math.max(0, anchor.y - ctx.renderer.root.y)
-    const height = Math.min(8, Math.max(1, matches.length), available)
+    // Reserve border rows separately from the eight-result cap.
+    const height = Math.min(8, Math.max(1, matches.length), available - 2)
     if (height < 1) {
       popup.visible = false
       return
     }
     popup.width = Math.max(1, Math.min(anchor.width, ctx.renderer.width - anchor.x))
-    popup.height = height
+    popup.height = height + 2
     popup.left = anchor.x - ctx.renderer.root.x
-    popup.top = anchor.y - ctx.renderer.root.y - height
+    popup.top = anchor.y - ctx.renderer.root.y - height - 2
     list.height = height
     if (selected < list.scrollTop) list.scrollTo(selected)
     else if (selected >= list.scrollTop + height) list.scrollTo(selected - height + 1)
@@ -92,9 +90,9 @@ function mount(ctx: Plugin.Context, prompt: Prompt) {
 
   function paint() {
     if (!popup.visible) return
-    popup.backgroundColor = ctx.theme.background.default
-    popup.borderColor = ctx.theme.border.default
-    list.backgroundColor = ctx.theme.background.default
+    popup.backgroundColor = ctx.theme.background.raised.base
+    popup.borderColor = ctx.theme.border.base
+    list.backgroundColor = ctx.theme.background.raised.base
     const signature = JSON.stringify(matches)
     if (signature !== rowSignature || rows.length === 0) {
       rowSignature = signature
@@ -123,8 +121,8 @@ function mount(ctx: Plugin.Context, prompt: Prompt) {
     }
     for (const [index, row] of rows.entries()) {
       const focused = matches.length > 0 && index === selected
-      row.box.backgroundColor = focused ? ctx.theme.background.action.primary.focused : ctx.theme.background.default
-      row.label.fg = focused ? ctx.theme.text.action.primary.focused : ctx.theme.text.default
+      row.box.backgroundColor = focused ? ctx.theme.background.action.primary.focused : ctx.theme.background.raised.base
+      row.label.fg = focused ? ctx.theme.text.action.primary.focused : ctx.theme.text.base
     }
     position()
   }

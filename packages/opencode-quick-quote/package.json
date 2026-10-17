@@ -51,14 +51,16 @@
     "provenance": true
   },
   "dependencies": {
-    "@opencode/plugin": "0.0.0-beta-19296",
+    "@opencode/plugin": "2.0.28",
     "marked": "17.0.1"
   },
   "peerDependencies": {
-    "@opentui/core": ">=0.5.10",
+    "@opentui/core": ">=0.5.17",
     "solid-js": ">=1.9.0"
   },
   "devDependencies": {
+    "@opencode/theme": "2.0.28",
+    "@opentui/core": "0.5.17",
     "typescript": "^5.9.3"
   }
 }
