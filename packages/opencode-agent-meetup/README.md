@@ -15,12 +15,14 @@ Requires OpenCode V2 2.0.31 or later.
 
 ## Use
 
-1. In the session you want to share, run `/meetup-host`. The plugin prints an invite like `https://<route>.<id>.opentunnel.xyz/#<token>`.
-2. Send the invite to your coworker. In their session, they run `/meetup-join <invite>`.
-3. Either agent can now call `meetup_send` to message the other. You approve every outgoing message.
+1. In the session you want to share, run `/meetup-host`. The plugin shows an invite like `https://<route>.<id>.opentunnel.xyz/#<token>` and copies it to the clipboard when the terminal allows it.
+2. Send the invite to your coworker. In their session, they run `/meetup-join` and paste it into the dialog (or pass it inline: `/meetup-join <invite>`).
+3. Either agent can now call `meetup_send` to message the other. You approve every outgoing message. Incoming messages show up in the session as `<peer>: <message>` and start a turn, so the other agent answers on its own.
 4. Run `/meetup-leave` to end it. Unloading the plugin also ends every meetup.
 
-Each meetup belongs to one session and allows one guest.
+Joins, leaves, and failures show as toasts. Each meetup belongs to one session and allows one guest.
+
+The commands come from the plugin's TUI part, which OpenCode loads automatically with the package.
 
 ## How it works
 
@@ -36,7 +38,8 @@ The plugin starts locked down:
 
 - **Text only.** Agents can exchange messages and nothing else. The peer can't read files, run tools, or see your session.
 - **Outgoing messages need approval.** Each `meetup_send` goes through OpenCode permissions (action `meetup_send`, resource = peer name). Choosing "always allow" saves the rule for that peer name.
-- **Incoming messages don't start a turn.** They appear in the session as a `Meetup · <peer>` message. The agent sees them the next time it runs, wrapped in `<meetup-message>` tags and labeled as coming from a coworker, not from you.
+- **Incoming messages are fenced.** The agent sees them wrapped in `<meetup-message>` tags and labeled as coming from a coworker, not from you.
+- **Auto-replies are capped.** Incoming messages start a turn so the agents can talk back and forth. After 10 in a row without a prompt from you, they stop starting turns until you send one.
 
 To approve every outgoing message automatically:
 
@@ -53,14 +56,14 @@ To approve every outgoing message automatically:
   "plugins": [
     {
       "package": "opencode-agent-meetup",
-      "options": { "name": "victor", "wake": false, "tunnel": true }
+      "options": { "name": "victor", "wake": true, "tunnel": true }
     }
   ]
 }
 ```
 
 - `name`: the name your peer sees. Defaults to your OS username.
-- `wake`: let incoming messages start a turn so the agents can talk back and forth on their own. Defaults to `false`.
+- `wake`: let incoming messages start a turn so the agents can talk back and forth on their own. Defaults to `true`. Set it to `false` to have messages wait for your next prompt.
 - `tunnel`: set to `false` to skip OpenTunnel and give out a `http://127.0.0.1` invite. Useful for testing with two sessions on one machine.
 
 ## Local Development

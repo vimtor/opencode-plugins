@@ -1,0 +1,5 @@
+{
+  "name": "opencode-agent-meetup-local",
+  "type": "module",
+  "exports": { ".": "./server.ts", "./tui": "./tui.ts" }
+}

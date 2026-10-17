@@ -4,14 +4,17 @@ import { Plugin } from "@opencode/plugin"
 import { joinHost } from "./guest.js"
 import { startHost } from "./host.js"
 import { cleanName, formatInvite, MAX_MESSAGE_LENGTH, parseInvite } from "./protocol.js"
+import { Meetup, type MeetupChanged, type MeetupResult } from "./rpc.js"
 import { loopback, openTunnel } from "./tunnel.js"
 
 const TOOL_ID = "meetup_send"
 const SOURCE = "agent-meetup"
+// Agents that may answer each other on their own get this many turns before a user prompt resets the count.
+const MAX_WAKES = 10
+const PREVIEW_LENGTH = 400
 
-interface Meetup {
+interface Session {
   readonly role: "host" | "guest"
-  readonly invite?: string
   readonly peer: () => string | undefined
   readonly send: (text: string) => void | Promise<void>
   readonly close: () => Promise<void>
@@ -31,6 +34,10 @@ function parseBoolean(name: string, value: unknown, fallback: boolean) {
   return value
 }
 
+function message(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
 // Peer text is untrusted: fence it so it can't pass as user or system instructions.
 export function formatIncoming(peer: string, text: string) {
   return [
@@ -42,49 +49,84 @@ export function formatIncoming(peer: string, text: string) {
   ].join("\n")
 }
 
+export function preview(peer: string, text: string) {
+  const line = text.replace(/\s+/g, " ").trim()
+  return `${peer}: ${line.length > PREVIEW_LENGTH ? `${line.slice(0, PREVIEW_LENGTH - 1)}…` : line}`
+}
+
 export default Plugin.define({
   id: "agent-meetup",
   async setup(ctx) {
     const name = cleanName(ctx.options.name ?? defaultName())
     const tunnel = parseBoolean("tunnel", ctx.options.tunnel, true)
-    const wake = parseBoolean("wake", ctx.options.wake, false)
-    const meetups = new Map<string, Meetup>()
+    const wake = parseBoolean("wake", ctx.options.wake, true)
+    const meetups = new Map<string, Session>()
+    const wakes = new Map<string, number>()
+
+    const registration = await ctx.rpc.register(Meetup, {
+      host: async (input) => attempt(() => host((input as { sessionID: string }).sessionID)),
+      join: async (input) => {
+        const { sessionID, invite } = input as { sessionID: string; invite: string }
+        return attempt(() => join(sessionID, invite))
+      },
+      leave: async (input) => attempt(() => leave((input as { sessionID: string }).sessionID)),
+    })
+
+    const emit = (event: MeetupChanged) => void registration.events.emit("changed", event).catch(() => undefined)
 
     const notice = (sessionID: string, description: string, text: string) =>
-      ctx.session
+      void ctx.session
         .synthetic({ sessionID, description, text, metadata: { source: SOURCE }, resume: false })
         .catch(() => undefined)
 
-    const deliver = (sessionID: string, peer: string, text: string) =>
-      ctx.session
+    const deliver = (sessionID: string, peer: string, text: string) => {
+      const count = wakes.get(sessionID) ?? 0
+      const resume = wake && count < MAX_WAKES
+      if (resume) wakes.set(sessionID, count + 1)
+      if (wake && count === MAX_WAKES) {
+        wakes.set(sessionID, count + 1)
+        emit({ sessionID, kind: "paused", peer })
+      }
+      void ctx.session
         .synthetic({
           sessionID,
-          description: `Meetup · ${peer}`,
+          description: preview(peer, text),
           text: formatIncoming(peer, text),
           metadata: { source: SOURCE, peer },
-          resume: wake,
+          resume,
         })
         .catch(() => undefined)
+    }
 
-    const end = async (sessionID: string) => {
-      const meetup = meetups.get(sessionID)
-      meetups.delete(sessionID)
-      await meetup?.close()
-      return meetup
+    const joined = (sessionID: string, peer: string) => {
+      notice(sessionID, `${peer} joined the meetup`, `${peer} joined the meetup. Use ${TOOL_ID} to message their agent.`)
+      emit({ sessionID, kind: "joined", peer })
+    }
+
+    const attempt = async (action: () => Promise<MeetupResult>): Promise<MeetupResult> => {
+      try {
+        return await action()
+      } catch (error) {
+        return { error: message(error) }
+      }
+    }
+
+    const busy = (sessionID: string) => {
+      if (meetups.has(sessionID)) throw new Error("This session is already in a meetup. Leave it first.")
     }
 
     const host = async (sessionID: string) => {
-      if (meetups.has(sessionID)) return notice(sessionID, "Meetup", "This session is already in a meetup. Run /meetup-leave first.")
-      if (tunnel) await notice(sessionID, "Meetup", "Opening a tunnel. The first time can take a minute.")
+      busy(sessionID)
       const token = randomBytes(24).toString("base64url")
       const server = await startHost({
         name,
         token,
-        onJoin: (peer) =>
-          void notice(sessionID, `Meetup · ${peer} joined`, `${peer} joined the meetup. Use ${TOOL_ID} to message their agent.`),
-        onMessage: (peer, text) => void deliver(sessionID, peer, text),
-        onLeave: (peer) =>
-          void notice(sessionID, `Meetup · ${peer} left`, `${peer} left the meetup. The invite still works if they rejoin.`),
+        onJoin: (peer) => joined(sessionID, peer),
+        onMessage: (peer, text) => deliver(sessionID, peer, text),
+        onLeave: (peer) => {
+          notice(sessionID, `${peer} left the meetup`, `${peer} left the meetup. The invite still works if they rejoin.`)
+          emit({ sessionID, kind: "left", peer })
+        },
       })
       const route = await (tunnel ? openTunnel(server.port) : Promise.resolve(loopback(server.port))).catch(
         async (error: unknown) => {
@@ -92,10 +134,9 @@ export default Plugin.define({
           throw error
         },
       )
-      const invite = formatInvite({ url: route.url, token })
+      busy(sessionID)
       meetups.set(sessionID, {
         role: "host",
-        invite,
         peer: server.peer,
         send: (text) => server.send(text),
         close: async () => {
@@ -103,66 +144,37 @@ export default Plugin.define({
           await route.close()
         },
       })
-      await notice(
-        sessionID,
-        "Meetup open",
-        [
-          "Meetup open. Share this invite with one coworker; they run `/meetup-join <invite>` in their session:",
-          "",
-          invite,
-          "",
-          "Anyone with the invite can message this session until /meetup-leave.",
-        ].join("\n"),
-      )
+      return { invite: formatInvite({ url: route.url, token }) }
     }
 
-    const join = async (sessionID: string, text: string) => {
-      if (meetups.has(sessionID)) return notice(sessionID, "Meetup", "This session is already in a meetup. Run /meetup-leave first.")
+    const join = async (sessionID: string, invite: string) => {
+      busy(sessionID)
       const guest = await joinHost({
-        invite: parseInvite(text),
+        invite: parseInvite(invite),
         name,
-        onMessage: (peer, text) => void deliver(sessionID, peer, text),
+        onMessage: (peer, text) => deliver(sessionID, peer, text),
         onClose: (reason) => {
           meetups.delete(sessionID)
-          void notice(sessionID, "Meetup ended", `${reason}.`)
+          notice(sessionID, "Meetup ended", `${reason}.`)
+          emit({ sessionID, kind: "ended", reason })
         },
       })
       meetups.set(sessionID, { role: "guest", ...guest })
-      await notice(
-        sessionID,
-        `Meetup · joined ${guest.peer()}`,
-        `Joined ${guest.peer()}'s meetup. Use ${TOOL_ID} to message their agent.`,
-      )
+      const peer = guest.peer()
+      joined(sessionID, peer)
+      return { peer }
     }
 
-    const run = async (sessionID: string, action: () => Promise<unknown>) => {
-      try {
-        await action()
-      } catch (error) {
-        await notice(sessionID, "Meetup failed", error instanceof Error ? error.message : String(error))
-      }
+    const leave = async (sessionID: string) => {
+      const meetup = meetups.get(sessionID)
+      meetups.delete(sessionID)
+      await meetup?.close()
+      if (meetup) notice(sessionID, "You left the meetup", "The user left the meetup.")
+      return { left: meetup !== undefined }
     }
 
-    await ctx.command.transform((editor) => {
-      editor.add({
-        name: "meetup-host",
-        description: "Open a meetup so a coworker's agent can talk to this session",
-        execute: ({ sessionID }) => run(sessionID, () => host(sessionID)),
-      })
-      editor.add({
-        name: "meetup-join",
-        description: "Join a coworker's meetup with their invite",
-        execute: ({ sessionID, prompt }) => run(sessionID, () => join(sessionID, prompt.text)),
-      })
-      editor.add({
-        name: "meetup-leave",
-        description: "Leave this session's meetup",
-        execute: ({ sessionID }) =>
-          run(sessionID, async () => {
-            const meetup = await end(sessionID)
-            await notice(sessionID, "Meetup ended", meetup ? "You left the meetup." : "This session has no meetup.")
-          }),
-      })
+    await ctx.session.hook("prompt", (event) => {
+      wakes.delete(event.sessionID)
     })
 
     await ctx.tool.transform((editor) => {
@@ -200,7 +212,9 @@ export default Plugin.define({
     })
 
     return async () => {
-      await Promise.all([...meetups.keys()].map((sessionID) => end(sessionID)))
+      const sessions = [...meetups.values()]
+      meetups.clear()
+      await Promise.all(sessions.map((meetup) => meetup.close()))
     }
   },
 })
