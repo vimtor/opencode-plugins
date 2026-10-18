@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-fallback-model",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenCode plugin that switches a session to fallback models when its model fails.",
   "type": "module",
   "main": "./dist/server.js",
