@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test"
+import { type AddressInfo, connect, createServer, type Socket } from "node:net"
 import type { Plugin } from "@opencode/plugin"
 import type { Info, ToolContext } from "@opencode/plugin/promise/tool"
 import meetup, { formatIncoming, preview } from "opencode-agent-meetup"
@@ -114,6 +115,32 @@ test("tells the guest when the host leaves", async () => {
   expect(alice.synthetics.at(-1)).toMatchObject({ description: "You ended the meetup" })
   const ended = await until(() => bob.events.find((event) => event.kind === "ended"))
   expect(ended).toEqual({ sessionID: "ses_b", role: "none", kind: "ended", reason: "alice ended the meetup" })
+})
+
+test("tells a guest behind a slow tunnel before the tunnel closes", async () => {
+  const alice = await setup({ name: "alice" })
+  const bob = await setup({ name: "bob" })
+  const { invite } = await alice.host("ses_a")
+  const target = new URL(invite!)
+  // Stands in for a tunnel: relays replies with a delay, and closes as soon as the host is done.
+  const sockets = new Set<Socket>()
+  const tunnel = createServer((client) => {
+    const upstream = connect(Number(target.port), target.hostname)
+    sockets.add(client).add(upstream)
+    client.on("data", (data) => upstream.write(data))
+    upstream.on("data", (data) => void setTimeout(() => client.write(data), 100))
+    client.on("error", () => undefined)
+    upstream.on("error", () => undefined)
+  })
+  await new Promise<void>((resolve) => tunnel.listen(0, "127.0.0.1", resolve))
+  const port = (tunnel.address() as AddressInfo).port
+  expect(await bob.join("ses_b", `http://127.0.0.1:${port}/${target.hash}`)).toEqual({ peer: "alice" })
+
+  await alice.leave("ses_a")
+  tunnel.close()
+  for (const socket of sockets) socket.destroy()
+  const ended = await until(() => bob.events.find((event) => event.kind === "ended"))
+  expect(ended.reason).toBe("alice ended the meetup")
 })
 
 test("pauses auto-replies after ten wakes until the user prompts", async () => {

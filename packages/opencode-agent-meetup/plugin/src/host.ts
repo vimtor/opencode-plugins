@@ -4,6 +4,8 @@ import type { AddressInfo } from "node:net"
 import { checkText, cleanName, MAX_MESSAGE_LENGTH, POLL_TIMEOUT_MS, type Message, type Poll } from "./protocol.js"
 
 const CLOSE_GRACE_MS = 2_000
+// After the closing reply leaves this server, a tunnel still has to relay it before it closes.
+const RELAY_MS = 500
 
 export interface HostInput {
   readonly hostname: string
@@ -35,7 +37,7 @@ export async function startHost(input: HostInput) {
   let seq = 0
   let closed = false
   let reason: string | undefined
-  // Resolves once the guest has seen that the meetup closed, so close() doesn't shut the server first.
+  // Resolves once the reply telling the guest the meetup closed has been sent, so close() doesn't shut the server first.
   let notified: () => void = () => {}
   const told = new Promise<void>((resolve) => (notified = resolve))
 
@@ -72,7 +74,6 @@ export async function startHost(input: HostInput) {
         request.once("close", done)
       })
     }
-    if (closed) notified()
     return { messages: outbox, closed, ...(closed && reason ? { reason } : {}) }
   }
 
@@ -80,7 +81,11 @@ export async function startHost(input: HostInput) {
     authorize(request)
     const url = new URL(request.url ?? "/", "http://meetup")
     const route = `${request.method} ${url.pathname}`
-    if (route === "GET /v1/messages") return send(response, 200, await poll(request, url))
+    if (route === "GET /v1/messages") {
+      const body = await poll(request, url)
+      if (body.closed) response.once("finish", notified)
+      return send(response, 200, body)
+    }
     if (closed) throw new HttpError(410, "Meetup ended")
     const body = route.startsWith("POST ") ? await readJson(request) : {}
     switch (route) {
@@ -136,7 +141,7 @@ export async function startHost(input: HostInput) {
       closed = true
       reason = why
       wake()
-      if (guest) await Promise.race([told, new Promise((resolve) => setTimeout(resolve, CLOSE_GRACE_MS).unref())])
+      if (guest) await Promise.race([told.then(() => delay(RELAY_MS)), delay(CLOSE_GRACE_MS)])
       await new Promise<void>((resolve) => {
         server.close(() => resolve())
         server.closeIdleConnections()
@@ -147,6 +152,10 @@ export async function startHost(input: HostInput) {
       })
     },
   }
+}
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms).unref())
 }
 
 function send(response: ServerResponse, status: number, body?: unknown) {
