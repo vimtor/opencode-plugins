@@ -18,6 +18,7 @@ My personal plugins for OpenCode V2 (beta).
 - [`opencode-idle-compaction`](packages/opencode-idle-compaction/README.md): compacts large idle sessions before their prompt cache expires.
 - [`opencode-auto-model`](packages/opencode-auto-model/README.md): adds an auto model that picks a model and variant on each session's first prompt.
 - [`opencode-agent-meetup`](packages/opencode-agent-meetup/README.md): lets your agent message a coworker's agent over an OpenTunnel link.
+- [`opencode-fallback-model`](packages/opencode-fallback-model/README.md): switches a session to fallback models when its model fails.
 
 ## Development
 

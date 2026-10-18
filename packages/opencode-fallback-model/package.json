@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-fallback-model",
+  "version": "0.0.0",
+  "description": "OpenCode plugin that switches a session to fallback models when its model fails.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "smoke": "bun -e \"import('./dist/server.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 plugin export') })\"",
+    "pack:dry-run": "bun pm pack --dry-run",
+    "prepack": "bun run build && bun run smoke",
+    "prepublishOnly": "bun run prepack && bun run typecheck"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "models",
+    "fallback",
+    "retry",
+    "ai"
+  ],
+  "author": "vimtor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-plugins.git",
+    "directory": "packages/opencode-fallback-model"
+  },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-plugins/issues"
+  },
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-fallback-model#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.31"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
