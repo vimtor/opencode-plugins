@@ -3,7 +3,7 @@ import { dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Host } from "@opencode/plugin/host"
 import type { Plugin } from "@opencode/plugin/tui"
-import type { DialogPromptOptions, ToastOptions } from "@opencode/plugin/tui/context"
+import type { DialogPromptOptions, DialogSelectOptions, KeymapCommand, KeymapLayer, SlotClaim, ToastOptions } from "@opencode/plugin/tui/context"
 import blindfold from "opencode-blindfold/tui"
 
 test("loads through a local directory as well as npm exports", async () => {
@@ -41,6 +41,7 @@ async function harness(answers: Array<string | undefined>) {
         clear: () => { cleared++; pending?.(undefined) },
       },
       toast: { show: (toast: ToastOptions) => toasts.push(toast) },
+      slot: () => () => {},
     },
   } as unknown as Plugin.Context)
   const location = { directory: "/project" }
@@ -80,4 +81,68 @@ test("cancels when dismissed and closes dialogs answered elsewhere", async () =>
   expect(elsewhere.calls).toEqual([])
   await elsewhere.resolve()
   expect(elsewhere.cleared()).toBe(1)
+})
+
+test("/secrets lists stored names and deletes the selected one with ctrl+d", async () => {
+  let names = ["API_TOKEN", "NPM_TOKEN"]
+  const calls: Array<[string, unknown, unknown]> = []
+  const selects: DialogSelectOptions<string>[] = []
+  const toasts: ToastOptions[] = []
+  let cleared = 0
+  let command: KeymapCommand | undefined
+  let render!: SlotClaim<"app">["render"]
+  const location = { directory: "/project" }
+  const cleanup = await blindfold.setup({
+    location: undefined,
+    client: {
+      rpc: () => ({
+        list: async (input: unknown, options: unknown) => { calls.push(["list", input, options]); return { names } },
+        remove: async (input: { name: string }, options: unknown) => {
+          calls.push(["remove", input, options])
+          const accepted = names.includes(input.name)
+          names = names.filter((name) => name !== input.name)
+          return { accepted }
+        },
+        events: { on: () => () => {} },
+      }),
+    },
+    keymap: { layer: (get: () => KeymapLayer) => { command = get().commands?.[0] } },
+    data: { session: { get: () => ({ location }), sync: async () => {} } },
+    ui: {
+      slot: (claim: SlotClaim<"app">) => { render = claim.render; return () => {} },
+      router: { current: () => ({ type: "session", sessionID: "ses" }) },
+      dialog: {
+        select: (options: DialogSelectOptions<string>) => { selects.push(options); return new Promise(() => {}) },
+        clear: () => { cleared++ },
+      },
+      toast: { show: (toast: ToastOptions) => toasts.push(toast) },
+    },
+  } as unknown as Plugin.Context)
+  render({})
+  if (!command) throw new Error("Secrets command was not registered")
+  expect(command).toMatchObject({ id: "blindfold.secrets", palette: true, slash: { name: "secrets" } })
+
+  void command.run()
+  await Bun.sleep(0)
+  expect(selects[0].options).toEqual([{ title: "API_TOKEN", value: "API_TOKEN" }, { title: "NPM_TOKEN", value: "NPM_TOKEN" }])
+  const [remove] = selects[0].actions!
+  expect(remove).toMatchObject({ bind: "ctrl+d", title: "delete" })
+  if (remove.selection === "none") throw new Error("Delete must act on the selected secret")
+
+  remove.onTrigger("API_TOKEN")
+  await Bun.sleep(0)
+  expect(calls).toContainEqual(["remove", { name: "API_TOKEN" }, { location }])
+  expect(toasts).toEqual([{ variant: "success", message: "Secret API_TOKEN deleted." }])
+  expect(selects[1].options).toEqual([{ title: "NPM_TOKEN", value: "NPM_TOKEN" }])
+  expect(selects[1].current).toBe("NPM_TOKEN")
+
+  const last = selects[1].actions![0]
+  if (last.selection === "none") throw new Error("Delete must act on the selected secret")
+  last.onTrigger("NPM_TOKEN")
+  await Bun.sleep(0)
+  expect(selects).toHaveLength(2)
+  expect(cleared).toBe(1)
+  expect(toasts.at(-1)).toEqual({ variant: "info", message: "No secrets stored." })
+  expect(calls.filter(([method]) => method === "list").every(([, , options]) => JSON.stringify(options) === JSON.stringify({ location }))).toBe(true)
+  await cleanup?.()
 })

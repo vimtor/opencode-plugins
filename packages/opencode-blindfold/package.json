@@ -64,7 +64,7 @@
     "provenance": true
   },
   "dependencies": {
-    "@opencode/plugin": "0.0.0-beta-19296"
+    "@opencode/plugin": "2.0.31"
   },
   "peerDependencies": {
     "solid-js": ">=1.9.0"

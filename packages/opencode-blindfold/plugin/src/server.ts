@@ -122,6 +122,8 @@ export default Plugin.define({
         request.finish({ status: "cancelled" })
         return { accepted: true }
       },
+      list: async () => ({ names: redactor.names().sort() }),
+      remove: async (input) => ({ accepted: redactor.delete((input as { name: string }).name) }),
     })
 
     function ask(request: { sessionID: string; name: string; reason: string }) {
@@ -209,7 +211,7 @@ export default Plugin.define({
     })
 
     await ctx.tool.hook("execute.after", (event) => {
-      if (redactor.size === 0 || GET_TOOL_IDS.has(event.tool)) return
+      if (redactor.empty || GET_TOOL_IDS.has(event.tool)) return
       if (event.status === "completed") {
         event.result = redactor.value(event.result as Record<string, unknown>) as Result
         return
@@ -223,7 +225,7 @@ export default Plugin.define({
 
     const system = instructions(settings)
     await ctx.session.hook("context", (event) => {
-      if (redactor.size > 0) {
+      if (!redactor.empty) {
         event.messages = redactor.value(event.messages)
         event.system = redactor.value(event.system)
       }
@@ -232,7 +234,7 @@ export default Plugin.define({
 
     // Last line of defense for requests that bypass the context hook, such as compaction and titles.
     await ctx.session.hook("http.request", async (event) => {
-      if (redactor.size === 0 || !event.request.body) return
+      if (redactor.empty || !event.request.body) return
       const body = await event.request.clone().text()
       const redacted = redactor.text(body)
       if (redacted === body) return

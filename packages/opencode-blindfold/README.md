@@ -18,6 +18,8 @@ Requires OpenCode V2 (beta) and the TUI.
    - every message and system prompt sent to the model
    - raw provider HTTP requests, as a final safeguard
 
+Run `/secrets` to see the names of stored secrets, never their values. Press Ctrl+D to delete the selected one; you're asked for it again the next time the agent needs it. Deleted and replaced values stay redacted until OpenCode restarts, since earlier output may still contain them.
+
 Secrets are kept in memory and are lost when the OpenCode service restarts. Encoded forms are only redacted when at least 8 characters long, so very short secrets are redacted only in their raw form.
 
 ## Install

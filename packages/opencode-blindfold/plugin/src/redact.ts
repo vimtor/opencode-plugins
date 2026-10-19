@@ -27,10 +27,12 @@ export function replacement(name: string) {
 
 export class Redactor {
   #secrets = new Map<string, string>()
+  // Removed and replaced values stay redacted, because earlier output can still contain them.
+  #retired = new Map<string, string>()
   #needles: Needle[] = []
 
-  get size() {
-    return this.#secrets.size
+  get empty() {
+    return this.#needles.length === 0
   }
 
   names() {
@@ -47,14 +49,16 @@ export class Redactor {
 
   set(name: string, value: string) {
     if (value === "") throw new Error("Secrets must not be empty")
+    this.#retire(name)
     this.#secrets.set(name, value)
     this.#rebuild()
   }
 
   delete(name: string) {
-    const deleted = this.#secrets.delete(name)
-    if (deleted) this.#rebuild()
-    return deleted
+    if (!this.#retire(name)) return false
+    this.#secrets.delete(name)
+    this.#rebuild()
+    return true
   }
 
   text(input: string) {
@@ -95,9 +99,18 @@ export class Redactor {
     return input
   }
 
+  #retire(name: string) {
+    const value = this.#secrets.get(name)
+    if (value === undefined) return false
+    this.#retired.set(value, name)
+    return true
+  }
+
   #rebuild() {
     const needles = new Map<string, string>()
-    for (const [name, value] of this.#secrets) {
+    // Stored secrets come first so a value that is stored again is labelled with its current name.
+    const values = [...this.#secrets, ...[...this.#retired].map(([value, name]) => [name, value] as const)]
+    for (const [name, value] of values) {
       if (!needles.has(value)) needles.set(value, replacement(name))
       for (const text of encodings(value)) {
         if (text.length >= MIN_ENCODED_LENGTH && !needles.has(text)) needles.set(text, replacement(name))

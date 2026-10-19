@@ -251,6 +251,37 @@ test("shell approval and env injection can be turned off", async () => {
   expect(disabled.tools.get("get")!.description).not.toContain("Shell")
 })
 
+test("lists and removes secrets by name, and keeps redacting removed and replaced values", async () => {
+  const { tools, hooks, handlers, store, emitted } = await harness()
+  expect(await handlers().list({})).toEqual({ names: [] })
+  await store(SECRET, "NPM_TOKEN")
+  await store("old-api-secret", "API_TOKEN")
+  expect(await handlers().list({})).toEqual({ names: ["API_TOKEN", "NPM_TOKEN"] })
+
+  const replaced = tools.get("get")!.execute({ name: "API_TOKEN", replace: true }, context)
+  await Bun.sleep(0)
+  await handlers().submit({ requestID: emitted.filter(([event]) => event === "requested").at(-1)![1].requestID, value: "new-api-secret" })
+  await replaced
+
+  expect(await handlers().remove({ name: "NPM_TOKEN" })).toEqual({ accepted: true })
+  expect(await handlers().remove({ name: "NPM_TOKEN" })).toEqual({ accepted: false })
+  expect(await handlers().list({})).toEqual({ names: ["API_TOKEN"] })
+
+  const shell = { command: "echo $NPM_TOKEN", env: {} as Record<string, string> }
+  await hooks.get("shell.create.before")!(shell)
+  expect(shell.env).toEqual({})
+
+  const event = { tool: "shell", status: "completed", result: { content: `${SECRET} old-api-secret new-api-secret` } }
+  await hooks.get("tool.execute.after")!(event)
+  expect(event.result.content).toBe("[REDACTED:NPM_TOKEN] [REDACTED:API_TOKEN] [REDACTED:API_TOKEN]")
+
+  const removed = tools.get("get")!.execute({ name: "NPM_TOKEN" }, context)
+  await Bun.sleep(0)
+  expect(emitted.filter(([event]) => event === "requested").at(-1)![1].name).toBe("NPM_TOKEN")
+  await handlers().cancel({ requestID: emitted.filter(([event]) => event === "requested").at(-1)![1].requestID })
+  await expect(removed).rejects.toThrow("declined to provide NPM_TOKEN")
+})
+
 test("redacts one-character secrets in raw form only", async () => {
   const { hooks, store } = await harness()
   await store("Z")

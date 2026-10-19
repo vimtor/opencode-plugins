@@ -5,6 +5,7 @@ export default Plugin.define({
   id: "blindfold",
   setup(ctx) {
     const blindfold = ctx.client.rpc(Blindfold)
+    type CallOptions = Parameters<typeof blindfold.list>[1]
     // Requests with an open dialog in this client.
     const open = new Set<string>()
 
@@ -46,9 +47,71 @@ export default Plugin.define({
       if (open.delete((event.data as { requestID: string }).requestID)) ctx.ui.dialog.clear()
     })
 
+    // Secrets live in the server plugin of the current session's location.
+    async function target(): Promise<CallOptions> {
+      const route = ctx.ui.router.current()
+      if (route.type === "session" && !ctx.data.session.get(route.sessionID)) await ctx.data.session.sync(route.sessionID)
+      const location = (route.type === "session" ? ctx.data.session.get(route.sessionID)?.location : undefined) ?? ctx.location
+      return location ? { location } : undefined
+    }
+
+    async function showSecrets(options: CallOptions, current?: string) {
+      const { names } = (await blindfold.list({}, options)) as { names: string[] }
+      if (names.length === 0) {
+        if (current !== undefined) ctx.ui.dialog.clear()
+        ctx.ui.toast.show({ variant: "info", message: "No secrets stored." })
+        return
+      }
+      await ctx.ui.dialog.select({
+        title: "Secrets",
+        placeholder: "Search secrets",
+        options: names.map((name) => ({ title: name, value: name })),
+        current: current && (names.find((name) => name >= current) ?? names.at(-1)),
+        actions: [{ bind: "ctrl+d", title: "delete", onTrigger: (name) => void remove(name, options) }],
+      })
+    }
+
+    async function remove(name: string, options: CallOptions) {
+      try {
+        const { accepted } = (await blindfold.remove({ name }, options)) as { accepted: boolean }
+        if (accepted) ctx.ui.toast.show({ variant: "success", message: `Secret ${name} deleted.` })
+        await showSecrets(options, name)
+      } catch {
+        ctx.ui.toast.show({ variant: "error", message: `Could not delete secret ${name}.` })
+      }
+    }
+
+    const stopSlot = ctx.ui.slot({
+      append: "app",
+      render() {
+        ctx.keymap.layer(() => ({
+          mode: "global",
+          commands: [
+            {
+              id: "blindfold.secrets",
+              bind: false,
+              title: "Show stored secrets",
+              group: "Plugin",
+              palette: true,
+              slash: { name: "secrets" },
+              run: async () => {
+                try {
+                  await showSecrets(await target())
+                } catch {
+                  ctx.ui.toast.show({ variant: "error", message: "Could not load secrets." })
+                }
+              },
+            },
+          ],
+        }))
+        return null
+      },
+    })
+
     return () => {
       stopRequested()
       stopResolved()
+      stopSlot()
     }
   },
 })

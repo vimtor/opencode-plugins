@@ -31,6 +31,24 @@ export const Blindfold = Rpc.define({
     },
     ack: { input: request, output: reply },
     cancel: { input: request, output: reply },
+    list: {
+      input: { type: "object", properties: {}, additionalProperties: false },
+      output: {
+        type: "object",
+        properties: { names: { type: "array", items: { type: "string" } } },
+        required: ["names"],
+        additionalProperties: false,
+      },
+    },
+    remove: {
+      input: {
+        type: "object",
+        properties: { name: { type: "string" } },
+        required: ["name"],
+        additionalProperties: false,
+      },
+      output: reply,
+    },
   },
   events: {
     requested: {
