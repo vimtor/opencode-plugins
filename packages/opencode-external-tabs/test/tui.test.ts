@@ -28,7 +28,7 @@ afterEach(() => {
 
 type Handler = (event: unknown) => void
 
-async function setup(input: { location?: string; defaultLocation?: string } = {}) {
+async function setup(input: { location?: string; defaultLocation?: string; sessions?: Record<string, string> } = {}) {
   const handlers = new Map<string, Set<Handler>>()
   const opened: string[] = []
   const cleanup = await externalTabs.setup({
@@ -41,6 +41,12 @@ async function setup(input: { location?: string; defaultLocation?: string } = {}
         return () => set.delete(handler)
       },
       location: { default: () => ({ directory: input.defaultLocation ?? "/default" }) },
+      session: {
+        get: (sessionID: string) => {
+          const directory = input.sessions?.[sessionID]
+          return directory ? { location: { directory } } : undefined
+        },
+      },
     },
     ui: {
       tabs: {
@@ -54,15 +60,24 @@ async function setup(input: { location?: string; defaultLocation?: string } = {}
       },
     },
   } as unknown as Plugin.Context)
-  const created = (data: { sessionID: string; directory: string; parentID?: string }) => {
+  const created = (data: { sessionID: string; directory: string; parentID?: string; metadata?: Record<string, unknown> }) => {
     for (const handler of handlers.get("session.created") ?? []) {
       handler({
         type: "session.created",
-        data: { sessionID: data.sessionID, parentID: data.parentID, location: { directory: data.directory } },
+        data: { sessionID: data.sessionID, parentID: data.parentID, location: { directory: data.directory }, metadata: data.metadata },
       })
     }
   }
-  return { opened, created, cleanup: async () => { if (cleanup) await cleanup() }, handlers }
+  const updated = (data: { sessionID: string; directory?: string; metadata: Record<string, unknown> }) => {
+    for (const handler of handlers.get("session.metadata.updated") ?? []) {
+      handler({
+        type: "session.metadata.updated",
+        location: data.directory ? { directory: data.directory } : undefined,
+        data: { sessionID: data.sessionID, metadata: data.metadata },
+      })
+    }
+  }
+  return { opened, created, updated, cleanup: async () => { if (cleanup) await cleanup() }, handlers }
 }
 
 test("loads through a local directory as well as npm exports", async () => {
@@ -129,10 +144,37 @@ test("treats an invalid config as the default cwd scope", async () => {
   expect(opened).toEqual(["ses_sdk"])
 })
 
+test("skips sessions created with tab: false metadata", async () => {
+  const { opened, created } = await setup({ location: "/repo" })
+  created({ sessionID: "ses_job", directory: "/repo", metadata: { tab: false } })
+  created({ sessionID: "ses_sdk", directory: "/repo", metadata: { other: true } })
+  expect(opened).toEqual(["ses_sdk"])
+})
+
+test("opens a session when its metadata sets tab: true", async () => {
+  const { opened, created, updated } = await setup({ location: "/repo" })
+  created({ sessionID: "ses_job", directory: "/repo", metadata: { tab: false } })
+  updated({ sessionID: "ses_job", directory: "/repo", metadata: { tab: false } })
+  expect(opened).toEqual([])
+  updated({ sessionID: "ses_job", directory: "/repo", metadata: { tab: true } })
+  expect(opened).toEqual(["ses_job"])
+})
+
+test("applies the tab scope to metadata updates", async () => {
+  const { opened, updated } = await setup({ location: "/repo", sessions: { ses_known: "/repo" } })
+  updated({ sessionID: "ses_elsewhere", directory: "/other", metadata: { tab: true } })
+  updated({ sessionID: "ses_known", metadata: { tab: true } })
+  expect(opened).toEqual(["ses_known"])
+  writeFileSync(config, JSON.stringify({ tabs: { scope: "global" } }))
+  updated({ sessionID: "ses_elsewhere", directory: "/other", metadata: { tab: true } })
+  expect(opened).toEqual(["ses_known", "ses_elsewhere"])
+})
+
 test("stops listening on cleanup", async () => {
   const { opened, created, cleanup, handlers } = await setup({ location: "/repo" })
   await cleanup()
   expect(handlers.get("session.created")?.size).toBe(0)
+  expect(handlers.get("session.metadata.updated")?.size).toBe(0)
   created({ sessionID: "ses_sdk", directory: "/repo" })
   expect(opened).toEqual([])
 })

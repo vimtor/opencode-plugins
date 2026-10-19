@@ -23,6 +23,8 @@ When another client creates a session, the plugin opens it as a tab without chan
 
 Only sessions created while the TUI is connected open. Closed tabs are not reopened.
 
+To open a session only when it needs you, create it with session metadata `tab: false`, then set `tab: true` when it should open. A scheduled job can create its session with `opencode api post /api/session --data '{"id":"ses_job_20261019","metadata":{"tab":false}}'`, run, then call `opencode api patch /api/session/ses_job_20261019 --data '{"metadata":{"tab":true}}'` if it has a question. Each update to `tab: true` opens the tab again, even after you close it.
+
 The plugin follows your `tabs.scope` setting in `cli.json`. With `cwd`, the default, only sessions in OpenCode's current directory open. With `global`, root sessions from any directory open. Scope changes apply without a restart.
 
 ## Local Development
