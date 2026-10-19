@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { createEffect, createRoot } from "solid-js"
 import { dirname } from "node:path"
 import { fileURLToPath } from "node:url"
-import { BoxRenderable, TextareaRenderable } from "@opentui/core"
+import { BoxRenderable, RGBA, TextareaRenderable } from "@opentui/core"
 import { createTestRenderer } from "@opentui/core/testing"
 import { Host } from "@opencode/plugin/host"
 import type { Plugin } from "@opencode/plugin/tui"
@@ -19,10 +19,16 @@ test("loads through a local directory as well as npm exports", async () => {
   expect(await Host.load(tui)).toHaveProperty("default", quickQuote)
 })
 
-async function harness() {
+const theme = {
+  border: { base: RGBA.fromHex("#777777") },
+  background: { base: RGBA.fromHex("#ffffff"), raised: { base: RGBA.fromHex("#eeeeee") }, action: { primary: { focused: RGBA.fromHex("#0000ff") } } },
+  text: { base: RGBA.fromHex("#111111"), action: { primary: { focused: RGBA.fromHex("#ffffff") } } },
+}
+
+async function harness(top = 15) {
   const view = await createTestRenderer({ width: 80, height: 24 })
   cleanup.push(() => view.renderer.destroy())
-  const container = new BoxRenderable(view.renderer, { top: 15, position: "absolute", width: 80 })
+  const container = new BoxRenderable(view.renderer, { top, position: "absolute", width: 80 })
   const input = new TextareaRenderable(view.renderer, { width: "100%", height: 3 })
   const footer = new BoxRenderable(view.renderer, { width: "100%", height: 1 })
   container.add(input)
@@ -37,14 +43,9 @@ async function harness() {
   }
   let sessionID = "session"
   let mode = "base"
-  const action = { primary: { focused: "#ffffff" } }
   const ctx = {
     renderer: view.renderer,
-    theme: {
-      border: { default: "#777777" },
-      background: { default: "#000000", action },
-      text: { default: "#ffffff", subdued: "#aaaaaa", action },
-    },
+    theme,
     keymap: {
       // Like OpenTUI's useBindings, resolve the target in a Solid effect. A
       // non-reactive target discovered after mount never registers the layer.
@@ -86,9 +87,10 @@ async function harness() {
     input.insertText(text)
     await view.flush()
   }
-  const visible = () => view.renderer.root.getChildren().find((child) => child.id.startsWith("quick-quote-"))?.visible
+  const popup = () => view.renderer.root.getChildren().find((child) => child.id.startsWith("quick-quote-"))
+  const visible = () => popup()?.visible
   return {
-    ...view, input, prompt, run, type, visible, dispose: () => dispose(),
+    ...view, input, prompt, run, type, visible, popup, dispose: () => dispose(),
     switchSession: () => { sessionID = "other" },
     setMode: (value: string) => { mode = value },
   }
@@ -169,4 +171,27 @@ test("unloading removes the dropdown and editor listeners", async () => {
   h.dispose()
   expect(h.visible()).toBeUndefined()
   expect(h.input.editBuffer.listenerCount("content-changed")).toBe(listeners - 1)
+})
+
+test("paints a bordered popup with theme colors above the prompt", async () => {
+  const h = await harness()
+  await h.type(">")
+  const popup = h.popup()!
+  const lines = h.captureCharFrame().split("\n")
+  expect(popup.y + popup.height).toBe(15)
+  expect(lines[popup.y]).toMatch(/^┌─+┐$/)
+  expect(lines[popup.y + popup.height - 1]).toMatch(/^└─+┘$/)
+  const spans = h.captureSpans().lines
+  const selected = spans[popup.y + 1].spans.find((span) => span.text.includes("Call her"))!
+  const normal = spans[popup.y + 2].spans.find((span) => span.text.includes("Send her"))!
+  expect(selected.bg.equals(theme.background.action.primary.focused)).toBe(true)
+  expect(selected.fg.equals(theme.text.action.primary.focused)).toBe(true)
+  expect(normal.bg.equals(theme.background.raised.base)).toBe(true)
+  expect(normal.fg.equals(theme.text.base)).toBe(true)
+})
+
+test("hides the popup without room for a row and both borders", async () => {
+  const h = await harness(2)
+  await h.type(">sat")
+  expect(h.visible()).toBe(false)
 })

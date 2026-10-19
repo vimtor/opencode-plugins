@@ -1,6 +1,6 @@
 # Quick Quote
 
-Inline quote completion for OpenCode V2 (beta-19296).
+Inline quote completion for OpenCode V2 (2.0.28 or newer).
 
 Type `>` at the start of any prompt line to browse paragraphs from the latest
 assistant response group. Replies to the same user prompt stay together, including
