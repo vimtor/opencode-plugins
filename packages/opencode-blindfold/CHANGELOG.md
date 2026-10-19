@@ -1,5 +1,11 @@
 # opencode-blindfold
 
+## 0.2.2
+
+### Patch Changes
+
+- 9d3ad13: Ask for secrets one dialog at a time, so concurrent `blindfold.get` calls no longer close each other's prompt.
+
 ## 0.2.1
 
 ### Patch Changes
