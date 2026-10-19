@@ -148,15 +148,28 @@ export default Plugin.define({
       })
     }
 
+    // The TUI shows one dialog at a time and a new prompt closes the open one, so prompts must not overlap.
+    let queue: Promise<unknown> = Promise.resolve()
+    function serial<T>(task: () => Promise<T>) {
+      const next = queue.then(task, task)
+      queue = next.catch(() => undefined)
+      return next
+    }
+
     async function obtain(request: { sessionID: string; name: string; reason: string; replace?: boolean }) {
       const { name, reason, replace } = request
       if (!new RegExp(NAME_PATTERN).test(name)) throw new Error(`Secret name must match ${NAME_PATTERN}`)
       const stored = redactor.get(name)
       if (stored !== undefined && !replace) return stored
-      const answer = await ask({ sessionID: request.sessionID, name, reason })
-      if (answer.status !== "submitted") throw new Error(failure(name, answer.status))
-      redactor.set(name, answer.value)
-      return answer.value
+      return serial(async () => {
+        // Another call may have stored it while this one waited.
+        const stored = redactor.get(name)
+        if (stored !== undefined && !replace) return stored
+        const answer = await ask({ sessionID: request.sessionID, name, reason })
+        if (answer.status !== "submitted") throw new Error(failure(name, answer.status))
+        redactor.set(name, answer.value)
+        return answer.value
+      })
     }
 
     await ctx.tool.transform((editor) => {
