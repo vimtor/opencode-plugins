@@ -88,11 +88,11 @@ test("relays messages both ways and wakes the receiving agent", async () => {
   expect(alice.events).toContainEqual({ sessionID: "ses_a", role: "host", kind: "opened" })
   expect(alice.events).toContainEqual({ sessionID: "ses_a", role: "host", kind: "joined", peer: "bob" })
   expect(bob.events).toContainEqual({ sessionID: "ses_b", role: "guest", kind: "joined", peer: "alice" })
-  expect(await alice.status("ses_a")).toEqual({ role: "host", peer: "bob" })
-  expect(await bob.status("ses_b")).toEqual({ role: "guest", peer: "alice" })
+  expect(await alice.status("ses_a")).toEqual({ role: "host", peers: ["bob"] })
+  expect(await bob.status("ses_b")).toEqual({ role: "guest", peers: ["alice"] })
 
   await bob.send("ses_b", "hi from bob")
-  expect(bob.permissions.at(-1)).toMatchObject({ action: "meetup_send", resources: ["alice"], sessionID: "ses_b" })
+  expect(bob.permissions.at(-1)).toMatchObject({ action: "meetup_send", resources: ["*"], save: ["*"], sessionID: "ses_b" })
   const incoming = await until(() => alice.synthetics.find((message) => message.metadata?.peer === "bob"))
   expect(incoming).toMatchObject({ sessionID: "ses_a", resume: true, description: "bob: hi from bob" })
   expect(incoming.text).toContain('<meetup-message from="bob">\nhi from bob\n</meetup-message>')
@@ -164,10 +164,39 @@ test("only wakes the agent when wake is enabled", async () => {
   expect(incoming.resume).toBe(false)
 })
 
-test("returns errors for a second guest, bad tokens, and busy sessions", async () => {
-  const { alice, invite } = await pair()
+test("relays each message to everyone else, with its sender", async () => {
+  const { alice, bob, invite } = await pair()
   const carol = await setup({ name: "carol" })
-  expect(await carol.join("ses_c", invite)).toEqual({ error: "Someone already joined this meetup" })
+  expect(await carol.join("ses_c", invite)).toEqual({ peer: "alice" })
+  await until(() => alice.events.find((event) => event.kind === "joined" && event.peer === "carol"))
+  expect(await alice.status("ses_a")).toEqual({ role: "host", peers: ["bob", "carol"] })
+
+  expect(await carol.send("ses_c", "hi from carol")).toMatchObject({ content: "Sent to alice's meetup." })
+  for (const peer of [alice, bob]) {
+    const incoming = await until(() => peer.synthetics.find((message) => message.metadata?.peer === "carol"))
+    expect(incoming).toMatchObject({ description: "carol: hi from carol", resume: true })
+    expect(incoming.text).toContain('<meetup-message from="carol">')
+  }
+
+  expect(await alice.send("ses_a", "hello all")).toMatchObject({ content: "Sent to bob, carol." })
+  for (const peer of [bob, carol]) await until(() => peer.synthetics.find((message) => message.text.includes("hello all")))
+  await Bun.sleep(100)
+  expect(carol.synthetics.filter((message) => message.metadata?.peer === "carol")).toEqual([])
+  expect(alice.synthetics.filter((message) => message.metadata?.peer === "alice")).toEqual([])
+})
+
+test("numbers guests who share a name", async () => {
+  const { alice, invite } = await pair()
+  const other = await setup({ name: "bob" })
+  await other.join("ses_c", invite)
+  await until(() => alice.events.find((event) => event.kind === "joined" && event.peer === "bob-2"))
+  expect(await alice.status("ses_a")).toEqual({ role: "host", peers: ["bob", "bob-2"] })
+})
+
+test("returns errors for a full meetup, bad tokens, and busy sessions", async () => {
+  const { alice, invite } = await pair({ alice: { guests: 1 } })
+  const carol = await setup({ name: "carol" })
+  expect(await carol.join("ses_c", invite)).toEqual({ error: "This meetup is full" })
   expect(await carol.join("ses_c", invite.replace(/#.*/, "#wrong"))).toEqual({ error: "Invalid meetup token" })
   expect(await alice.host("ses_a")).toEqual({ error: "This session is already in a meetup. Leave it first." })
   expect(await carol.leave("ses_c")).toEqual({ role: "none" })
@@ -197,6 +226,10 @@ test("reports the expiry when hosting", async () => {
 
 test("rejects invalid expiry values", async () => {
   for (const expiry of ["5d", "0m", "1.5h", 30, "597h"]) await expect(setup({ expiry })).rejects.toThrow("expiry option")
+})
+
+test("rejects invalid guest limits", async () => {
+  for (const guests of [0, 1.5, "5", 101]) await expect(setup({ guests })).rejects.toThrow("guests option")
 })
 
 test("rejects unknown tunnel modes", async () => {

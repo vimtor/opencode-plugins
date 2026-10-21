@@ -11,6 +11,8 @@ export interface HostInput {
   readonly hostname: string
   readonly name: string
   readonly token: string
+  /** How many guests can be in the meetup at once. */
+  readonly guests: number
   readonly onJoin: (peer: string) => void
   readonly onMessage: (peer: string, text: string) => void
   readonly onLeave: (peer: string) => void
@@ -27,19 +29,38 @@ class HttpError extends Error {
   }
 }
 
-// Only one guest at a time: the first join claims the meetup, and the guest's random ID
-// authorizes every later request alongside the invite token.
+interface Guest {
+  readonly id: string
+  readonly name: string
+  /** Messages up to this seq were sent before the guest joined. */
+  readonly since: number
+  /** The last seq the guest has received. */
+  after: number
+}
+
+interface Entry extends Message {
+  /** The guest who sent it, who doesn't get it back. */
+  readonly sender?: string
+}
+
+// A group chat: the host's messages go to every guest, and each guest's message goes to the host and
+// the other guests. Each guest's random ID authorizes its requests alongside the invite token.
 export async function startHost(input: HostInput) {
   const expected = Buffer.from(`Bearer ${input.token}`)
   const waiters = new Set<() => void>()
-  let guest: { id: string; name: string } | undefined
-  let outbox: Message[] = []
+  const guests = new Map<string, Guest>()
+  let log: Entry[] = []
   let seq = 0
   let closed = false
   let reason: string | undefined
-  // Resolves once the reply telling the guest the meetup closed has been sent, so close() doesn't shut the server first.
+  // Guests whose reply saying the meetup closed has been sent, so close() doesn't shut the server first.
+  const informed = new Set<string>()
   let notified: () => void = () => {}
   const told = new Promise<void>((resolve) => (notified = resolve))
+  const inform = (id: string) => {
+    informed.add(id)
+    if ([...guests.keys()].every((guest) => informed.has(guest))) notified()
+  }
 
   const wake = () => {
     for (const waiter of waiters) waiter()
@@ -53,15 +74,39 @@ export async function startHost(input: HostInput) {
   }
 
   const claimed = (id: unknown) => {
-    if (!guest || guest.id !== id) throw new HttpError(403, "Not a member of this meetup")
+    const guest = typeof id === "string" ? guests.get(id) : undefined
+    if (!guest) throw new HttpError(403, "Not a member of this meetup")
     return guest
   }
 
+  const post = (from: string, text: string, sender?: string) => {
+    log.push({ seq: ++seq, from, text, ...(sender ? { sender } : {}) })
+    wake()
+  }
+
+  // Drop what every guest has received.
+  const prune = () => {
+    const oldest = Math.min(...[...guests.values()].map((guest) => Math.max(guest.after, guest.since)))
+    log = log.filter((entry) => entry.seq > oldest)
+  }
+
+  // Two people shouldn't look the same to the agents, so a repeated name gets a number.
+  const unique = (wanted: string) => {
+    const taken = new Set([input.name, ...[...guests.values()].map((guest) => guest.name)])
+    let name = wanted
+    for (let index = 2; taken.has(name); index++) name = `${wanted}-${index}`
+    return name
+  }
+
   const poll = async (request: IncomingMessage, url: URL): Promise<Poll> => {
-    claimed(url.searchParams.get("guest"))
-    const after = Number(url.searchParams.get("after") ?? 0)
-    outbox = outbox.filter((message) => message.seq > after)
-    if (!outbox.length && !closed) {
+    const guest = claimed(url.searchParams.get("guest"))
+    guest.after = Math.max(guest.after, Number(url.searchParams.get("after") ?? 0))
+    prune()
+    const pending = () =>
+      log
+        .filter((entry) => entry.seq > Math.max(guest.after, guest.since) && entry.sender !== guest.id)
+        .map(({ seq, from, text }) => ({ seq, from, text }))
+    if (!pending().length && !closed) {
       await new Promise<void>((resolve) => {
         const done = () => {
           clearTimeout(timer)
@@ -74,7 +119,7 @@ export async function startHost(input: HostInput) {
         request.once("close", done)
       })
     }
-    return { messages: outbox, closed, ...(closed && reason ? { reason } : {}) }
+    return { messages: pending(), closed, ...(closed && reason ? { reason } : {}) }
   }
 
   const handle = async (request: IncomingMessage, response: ServerResponse) => {
@@ -83,30 +128,35 @@ export async function startHost(input: HostInput) {
     const route = `${request.method} ${url.pathname}`
     if (route === "GET /v1/messages") {
       const body = await poll(request, url)
-      if (body.closed) response.once("finish", notified)
+      const id = url.searchParams.get("guest")!
+      if (body.closed) response.once("finish", () => inform(id))
       return send(response, 200, body)
     }
     if (closed) throw new HttpError(410, "Meetup ended")
     const body = route.startsWith("POST ") ? await readJson(request) : {}
     switch (route) {
       case "POST /v1/join": {
-        if (guest && guest.id !== body.guest) throw new HttpError(409, "Someone already joined this meetup")
         if (typeof body.guest !== "string" || !body.guest) throw new HttpError(400, "Missing guest ID")
+        let guest = guests.get(body.guest)
         if (!guest) {
-          guest = { id: body.guest, name: cleanName(body.name) }
+          if (guests.size >= input.guests) throw new HttpError(409, "This meetup is full")
+          guest = { id: body.guest, name: unique(cleanName(body.name)), since: seq, after: 0 }
+          guests.set(guest.id, guest)
           input.onJoin(guest.name)
         }
         return send(response, 200, { name: input.name })
       }
       case "POST /v1/messages": {
         const member = claimed(body.guest)
-        input.onMessage(member.name, checkText(body.text))
+        const text = checkText(body.text)
+        input.onMessage(member.name, text)
+        post(member.name, text, member.id)
         return send(response, 204)
       }
       case "POST /v1/leave": {
         const member = claimed(body.guest)
-        guest = undefined
-        outbox = []
+        guests.delete(member.id)
+        prune()
         wake()
         input.onLeave(member.name)
         return send(response, 204)
@@ -129,19 +179,18 @@ export async function startHost(input: HostInput) {
 
   return {
     port: (server.address() as AddressInfo).port,
-    peer: () => guest?.name,
+    peers: () => [...guests.values()].map((guest) => guest.name),
     send(text: string) {
       if (closed) throw new Error("Meetup ended")
-      if (!guest) throw new Error("No one has joined this meetup yet")
-      outbox.push({ seq: ++seq, text: checkText(text) })
-      wake()
+      if (!guests.size) throw new Error("No one has joined this meetup yet")
+      post(input.name, checkText(text))
     },
     async close(why?: string) {
       if (closed) return
       closed = true
       reason = why
       wake()
-      if (guest) await Promise.race([told.then(() => delay(RELAY_MS)), delay(CLOSE_GRACE_MS)])
+      if (guests.size) await Promise.race([told.then(() => delay(RELAY_MS)), delay(CLOSE_GRACE_MS)])
       await new Promise<void>((resolve) => {
         server.close(() => resolve())
         server.closeIdleConnections()

@@ -3,6 +3,8 @@ export const POLL_TIMEOUT_MS = 25_000
 
 export interface Message {
   readonly seq: number
+  /** Who wrote it: the host or one of the guests. */
+  readonly from: string
   readonly text: string
 }
 
@@ -64,6 +66,15 @@ export function parseExpiry(value: unknown): Expiry | undefined {
   const [unit, size] = UNITS[match[2] as keyof typeof UNITS]
   if (amount * size > MAX_TIMEOUT) throw new Error("opencode-agent-meetup expiry option must be at most 596h")
   return { ms: amount * size, label: `${amount} ${unit}${amount === 1 ? "" : "s"}` }
+}
+
+export const DEFAULT_GUESTS = 5
+
+export function parseGuests(value: unknown) {
+  if (value === undefined) return DEFAULT_GUESTS
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 100)
+    throw new Error("opencode-agent-meetup guests option must be a whole number from 1 to 100")
+  return value
 }
 
 export function cleanName(value: unknown) {
