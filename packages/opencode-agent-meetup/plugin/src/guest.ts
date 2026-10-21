@@ -58,7 +58,8 @@ export async function joinHost(input: GuestInput) {
         for (const message of poll.messages) {
           if (message.seq <= after) continue
           after = message.seq
-          input.onMessage(peer, message.text)
+          // Hosts before 0.2 only relayed their own messages, without a sender.
+          input.onMessage(message.from ? cleanName(message.from) : peer, message.text)
         }
         if (poll.closed) return end(poll.reason ?? `${peer} ended the meetup`)
       } catch {
@@ -70,7 +71,7 @@ export async function joinHost(input: GuestInput) {
   })()
 
   return {
-    peer: () => peer,
+    peers: () => [peer],
     async send(text: string) {
       if (ended) throw new Error("Meetup ended")
       await post("/v1/messages", { text: checkText(text) })

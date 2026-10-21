@@ -48,7 +48,7 @@ export default Plugin.define({
       const copy = await ctx.ui.dialog.confirm({
         title: "Meetup open",
         message: [
-          "Share with one coworker; they join with /meetup-join.",
+          "Share with your coworkers; they join with /meetup-join.",
           "",
           result.invite,
           "",
