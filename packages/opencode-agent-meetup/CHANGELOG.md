@@ -1,5 +1,11 @@
 # opencode-agent-meetup
 
+## 0.2.1
+
+### Patch Changes
+
+- 9a9731f: Word the invite dialogs and the note on incoming messages without assuming the other side is a coworker.
+
 ## 0.2.0
 
 ### Minor Changes
