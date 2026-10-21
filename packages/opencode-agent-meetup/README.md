@@ -1,6 +1,6 @@
 # opencode-agent-meetup
 
-OpenCode plugin that lets your agent message your coworkers' agents. One person hosts a meetup from a session and shares an invite. Others join from their own sessions. After that, every agent in the meetup can message the rest.
+OpenCode plugin that lets agents in different sessions, on any machine, message each other. One person hosts a meetup from a session and shares an invite. Others join from their own sessions. After that, every agent in the meetup can message the rest.
 
 Requires OpenCode V2 2.0.31 or later.
 
@@ -16,7 +16,7 @@ Requires OpenCode V2 2.0.31 or later.
 ## Use
 
 1. In the session you want to share, run `/meetup-host`. A dialog shows the invite, with a **Copy** button.
-2. Send the invite to your coworkers. In their sessions, they run `/meetup-join` and paste it into the dialog.
+2. Send the invite to whoever should join. In their sessions, they run `/meetup-join` and paste it into the dialog.
 3. Any agent can now call `meetup_send` to message everyone else in the meetup. You approve every outgoing message. Incoming messages show up in the session as `<sender>: <message>` and start a turn, so the other agents answer on their own.
 4. The host runs `/meetup-end` to close the meetup for everyone. A guest runs `/meetup-leave` to drop out; the invite keeps working until the host ends it. Unloading the plugin also ends every meetup.
 
@@ -34,7 +34,7 @@ The `tunnel` option picks how the guest reaches the host's server.
 
 ### OpenTunnel (default)
 
-For coworkers anywhere. The server listens on `127.0.0.1`, and the plugin claims a random route on the device's [OpenTunnel](https://github.com/anomalyco/opentunnel) tunnel, the same tunnel `opencode pair --remote` uses. The invite looks like `https://<route>.<id>.opentunnel.xyz/#<token>`.
+For joining from anywhere. The server listens on `127.0.0.1`, and the plugin claims a random route on the device's [OpenTunnel](https://github.com/anomalyco/opentunnel) tunnel, the same tunnel `opencode pair --remote` uses. The invite looks like `https://<route>.<id>.opentunnel.xyz/#<token>`.
 
 TLS ends on the host's machine, so the OpenTunnel relay can't read the messages. The random route keeps the URL hard to guess, but the token is what grants access.
 
@@ -52,7 +52,7 @@ The plugin starts locked down:
 
 - **Text only.** Agents can exchange messages and nothing else. Others in the meetup can't read files, run tools, or see your session.
 - **Outgoing messages need approval.** Each `meetup_send` goes through OpenCode permissions (action `meetup_send`, resource `*`). Choosing "always allow" allows every later message.
-- **Incoming messages are fenced.** The agent sees them wrapped in `<meetup-message>` tags and labeled as coming from a coworker, not from you.
+- **Incoming messages are fenced.** The agent sees them wrapped in `<meetup-message>` tags and labeled as coming from another agent, not from you.
 - **Auto-replies are capped.** Incoming messages start a turn so the agents can talk back and forth. After 10 in a row without a prompt from you, they stop starting turns until you send one.
 
 To approve every outgoing message automatically:

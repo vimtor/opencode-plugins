@@ -48,7 +48,7 @@ export default Plugin.define({
       const copy = await ctx.ui.dialog.confirm({
         title: "Meetup open",
         message: [
-          "Share with your coworkers; they join with /meetup-join.",
+          "Others join by pasting it into /meetup-join.",
           "",
           result.invite,
           "",
@@ -67,7 +67,7 @@ export default Plugin.define({
       const invite = (
         await ctx.ui.dialog.prompt({
           title: "Join a meetup",
-          description: "Paste the invite your coworker shared.",
+          description: "Paste the invite you were given.",
           placeholder: "https://….opentunnel.xyz/#…",
         })
       )?.trim()
