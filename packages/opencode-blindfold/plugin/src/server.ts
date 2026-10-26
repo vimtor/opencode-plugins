@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process"
+import { execFile, type ExecFileException } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { Plugin } from "@opencode/plugin"
 import { Error as ToolError, type Result } from "@opencode/plugin/promise/tool"
@@ -14,6 +14,7 @@ const ACK_TIMEOUT = 5_000
 const ONEPASSWORD_PREFIX = "op://"
 // Long enough for 1Password to ask the user to unlock it.
 const ONEPASSWORD_TIMEOUT = 2 * 60_000
+const ONEPASSWORD_ACCOUNT = "my.1password.com"
 
 type Answer = { status: "submitted"; value: string } | { status: "cancelled" | "timeout" | "unavailable" }
 type Pending = { finish: (answer: Answer) => void; acknowledge: () => void }
@@ -31,6 +32,7 @@ type Settings = {
   shell: { enabled: boolean; approve: boolean }
   codemode: { enabled: boolean }
   secrets: Map<string, string>
+  onepassword: { account?: string }
 }
 
 function group(options: Record<string, unknown>, key: string) {
@@ -59,6 +61,13 @@ function getSecrets(options: Record<string, unknown>) {
   return secrets
 }
 
+function getOnePassword(options: Record<string, unknown>) {
+  const account = group(options, "onepassword").account
+  if (account === undefined) return {}
+  if (typeof account !== "string" || account === "") throw new Error("opencode-blindfold onepassword.account option must be a non-empty string")
+  return { account }
+}
+
 function getSettings(options: Record<string, unknown>): Settings {
   const shell = group(options, "shell")
   const codemode = group(options, "codemode")
@@ -66,6 +75,7 @@ function getSettings(options: Record<string, unknown>): Settings {
     shell: { enabled: boolean(shell, "shell", "enabled", true), approve: boolean(shell, "shell", "approve", true) },
     codemode: { enabled: boolean(codemode, "codemode", "enabled", true) },
     secrets: getSecrets(options),
+    onepassword: getOnePassword(options),
   }
   if (!settings.shell.enabled && !settings.codemode.enabled) {
     throw new Error("opencode-blindfold needs shell.enabled or codemode.enabled, otherwise secrets cannot be used")
@@ -78,17 +88,25 @@ function mentioned(names: string[], command: string) {
   return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
-function readOnePassword(name: string, reference: string) {
-  return new Promise<string>((resolve, reject) => {
-    execFile("op", ["read", "--no-newline", reference], { timeout: ONEPASSWORD_TIMEOUT }, (error, stdout, stderr) => {
-      const fail = (detail: string) => reject(new Error(`Couldn't read ${name} from 1Password (${reference}): ${detail}`))
-      if (error && (error as NodeJS.ErrnoException).code === "ENOENT") return fail("the 1Password CLI (op) isn't installed.")
-      if (error && error.killed) return fail("timed out waiting for 1Password. Check that it's unlocked.")
-      if (error) return fail(stderr.trim() || error.message)
-      if (stdout === "") return fail("the field is empty.")
-      resolve(stdout)
-    })
+function opRead(reference: string, account: string | undefined) {
+  const args = ["read", "--no-newline", ...(account ? ["--account", account] : []), reference]
+  return new Promise<{ error: ExecFileException | null; stdout: string; stderr: string }>((resolve) => {
+    execFile("op", args, { timeout: ONEPASSWORD_TIMEOUT }, (error, stdout, stderr) => resolve({ error, stdout, stderr }))
   })
+}
+
+async function readOnePassword(name: string, reference: string, account: string | undefined) {
+  let { error, stdout, stderr } = await opRead(reference, account)
+  // With one account signed in, op picks it on its own; with several, fall back to the personal account.
+  if (error && account === undefined && stderr.includes("multiple accounts found")) {
+    ;({ error, stdout, stderr } = await opRead(reference, ONEPASSWORD_ACCOUNT))
+  }
+  const fail = (detail: string) => new Error(`Couldn't read ${name} from 1Password (${reference}): ${detail}`)
+  if (error && (error as NodeJS.ErrnoException).code === "ENOENT") throw fail("the 1Password CLI (op) isn't installed.")
+  if (error && error.killed) throw fail("timed out waiting for 1Password. Check that it's unlocked.")
+  if (error) throw fail(stderr.trim() || error.message)
+  if (stdout === "") throw fail("the field is empty.")
+  return stdout
 }
 
 function instructions(settings: Settings) {
@@ -215,7 +233,7 @@ export default Plugin.define({
         return answer.value
       }
       if (source === "") throw new Error(`${name} is empty in the opencode-blindfold secrets option, for example because its {env:...} variable isn't set.`)
-      if (source.startsWith(ONEPASSWORD_PREFIX)) return readOnePassword(name, source)
+      if (source.startsWith(ONEPASSWORD_PREFIX)) return readOnePassword(name, source, settings.onepassword.account)
       return source
     }
 

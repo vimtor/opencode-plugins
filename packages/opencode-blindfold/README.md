@@ -93,6 +93,20 @@ To skip the dialog, list secrets in the `secrets` option. Each one maps a name t
 
 The agent is told which names are configured. Other names still open the dialog.
 
+If you're signed in to more than one 1Password account, blindfold reads from `my.1password.com`. To use another account, set `onepassword.account`:
+
+```json
+{
+  "package": "opencode-blindfold",
+  "options": {
+    "onepassword": { "account": "acme.1password.com" },
+    "secrets": { "OPENCODE_API_KEY": "op://Agents/OpenCode Zen/credential" }
+  }
+}
+```
+
+Options are read when the OpenCode service starts. After changing them, run `opencode service restart`; restarting the app alone keeps the running service.
+
 ## Limitations
 
 Redaction guards against accidental exposure, not a hostile agent. Once you approve a shell command, that program has the real value and can send it anywhere. An agent can transform a value in ways redaction cannot recognize, such as reversing it or printing part of it, or send it to a server it controls. Live shell output shown in the TUI while a command runs is not redacted; the final result is.

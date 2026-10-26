@@ -262,16 +262,21 @@ test("redacts one-character secrets in raw form only", async () => {
   expect(event.result.content).toBe("[REDACTED:API_TOKEN] 5a")
 })
 
-async function fakeOnePassword() {
+// Signed in to several accounts, the real CLI refuses to read until one is picked with --account.
+async function fakeOnePassword({ accounts = 1 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "blindfold-op-"))
   const log = join(dir, "calls")
   const script = [
     "#!/bin/sh",
     `echo "$@" >> "${log}"`,
-    'case "$3" in',
+    'for ref; do :; done',
+    `if [ "$3" != "--account" ] && [ ${accounts} -gt 1 ]; then`,
+    '  echo "[ERROR] could not read secret \'$ref\': error initializing client: multiple accounts found. Use the --account flag or set the OP_ACCOUNT environment variable to select an account." >&2; exit 1',
+    "fi",
+    'case "$ref" in',
     '  op://Agents/Zen/credential) printf "zen-secret-123" ;;',
     '  op://Agents/Empty/credential) ;;',
-    '  *) echo "[ERROR] could not read secret \'$3\': item not found" >&2; exit 1 ;;',
+    '  *) echo "[ERROR] could not read secret \'$ref\': item not found" >&2; exit 1 ;;',
     "esac",
   ].join("\n")
   writeFileSync(join(dir, "op"), script, { mode: 0o755 })
@@ -319,6 +324,26 @@ test("reads op:// secrets from 1Password once, on first use", async () => {
   expect(op.calls()).toHaveLength(2)
 })
 
+test("falls back to the personal 1Password account when several are signed in", async () => {
+  using op = await fakeOnePassword({ accounts: 2 })
+  const { tools } = await harness({ secrets: { ZEN_KEY: "op://Agents/Zen/credential" } })
+  expect(await tools.get("get")!.execute({ name: "ZEN_KEY" }, context)).toEqual({ content: "zen-secret-123" })
+  expect(op.calls()).toEqual([
+    "read --no-newline op://Agents/Zen/credential",
+    "read --no-newline --account my.1password.com op://Agents/Zen/credential",
+  ])
+})
+
+test("reads from the configured 1Password account", async () => {
+  using op = await fakeOnePassword({ accounts: 2 })
+  const { tools } = await harness({
+    secrets: { ZEN_KEY: "op://Agents/Zen/credential" },
+    onepassword: { account: "acme.1password.com" },
+  })
+  expect(await tools.get("get")!.execute({ name: "ZEN_KEY" }, context)).toEqual({ content: "zen-secret-123" })
+  expect(op.calls()).toEqual(["read --no-newline --account acme.1password.com op://Agents/Zen/credential"])
+})
+
 test("configured secrets fail with a clear error instead of asking", async () => {
   using _ = await fakeOnePassword()
   const { tools, emitted } = await harness({
@@ -348,6 +373,7 @@ test("rejects invalid options and empty secrets", async () => {
   await expect(harness({ secrets: ["API_TOKEN"] })).rejects.toThrow("secrets option must be an object")
   await expect(harness({ secrets: { api_token: "x" } })).rejects.toThrow("secrets names must match")
   await expect(harness({ secrets: { API_TOKEN: 1 } })).rejects.toThrow("secrets.API_TOKEN option must be a string")
+  await expect(harness({ onepassword: { account: "" } })).rejects.toThrow("onepassword.account option must be a non-empty string")
   await expect(harness({ shell: { enabled: "yes" } })).rejects.toThrow("shell.enabled option")
   await expect(harness({ shell: true })).rejects.toThrow("shell option must be an object")
   await expect(harness({ shell: { enabled: false }, codemode: { enabled: false } })).rejects.toThrow("secrets cannot be used")
