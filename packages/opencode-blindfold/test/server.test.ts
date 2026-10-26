@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type { Plugin } from "@opencode/plugin"
 import type { Info, ToolContext, ToolEditor } from "@opencode/plugin/promise/tool"
 import blindfold from "opencode-blindfold"
@@ -259,7 +262,92 @@ test("redacts one-character secrets in raw form only", async () => {
   expect(event.result.content).toBe("[REDACTED:API_TOKEN] 5a")
 })
 
+async function fakeOnePassword() {
+  const dir = mkdtempSync(join(tmpdir(), "blindfold-op-"))
+  const log = join(dir, "calls")
+  const script = [
+    "#!/bin/sh",
+    `echo "$@" >> "${log}"`,
+    'case "$3" in',
+    '  op://Agents/Zen/credential) printf "zen-secret-123" ;;',
+    '  op://Agents/Empty/credential) ;;',
+    '  *) echo "[ERROR] could not read secret \'$3\': item not found" >&2; exit 1 ;;',
+    "esac",
+  ].join("\n")
+  writeFileSync(join(dir, "op"), script, { mode: 0o755 })
+  const path = process.env.PATH
+  process.env.PATH = `${dir}:${path}`
+  return {
+    calls: () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n") : []),
+    [Symbol.dispose]: () => {
+      process.env.PATH = path
+      rmSync(dir, { recursive: true, force: true })
+    },
+  }
+}
+
+test("configured plain secrets are available without asking and redacted from the start", async () => {
+  const { tools, hooks, emitted } = await harness({ secrets: { API_TOKEN: SECRET } })
+  const completed = { tool: "shell", status: "completed", result: { content: `token=${SECRET}` } }
+  await hooks.get("tool.execute.after")!(completed)
+  expect(completed.result.content).toBe("token=[REDACTED:API_TOKEN]")
+  const shell = { command: "echo $API_TOKEN", env: {} as Record<string, string> }
+  await hooks.get("shell.create.before")!(shell)
+  expect(shell.env).toEqual({ API_TOKEN: SECRET })
+  expect(await tools.get("get")!.execute({ name: "API_TOKEN" }, context)).toEqual({ content: SECRET })
+  expect(emitted).toHaveLength(0)
+
+  const request = { system: [] as Array<{ type: string; text: string }>, messages: [] }
+  await hooks.get("session.context")!(request)
+  expect(request.system[0].text).toContain("The user has configured these secrets: API_TOKEN.")
+})
+
+test("reads op:// secrets from 1Password once, on first use", async () => {
+  using op = await fakeOnePassword()
+  const { tools, hooks, emitted } = await harness({ secrets: { ZEN_KEY: "op://Agents/Zen/credential" } })
+  expect(op.calls()).toEqual([])
+  expect(await tools.get("get")!.execute({ name: "ZEN_KEY" }, context)).toEqual({ content: "zen-secret-123" })
+  expect(await tools.get("get")!.execute({ name: "ZEN_KEY" }, context)).toEqual({ content: "zen-secret-123" })
+  expect(op.calls()).toEqual(["read --no-newline op://Agents/Zen/credential"])
+  expect(emitted).toHaveLength(0)
+
+  const completed = { tool: "shell", status: "completed", result: { content: "zen-secret-123" } }
+  await hooks.get("tool.execute.after")!(completed)
+  expect(completed.result.content).toBe("[REDACTED:ZEN_KEY]")
+
+  await tools.get("get")!.execute({ name: "ZEN_KEY", replace: true }, context)
+  expect(op.calls()).toHaveLength(2)
+})
+
+test("configured secrets fail with a clear error instead of asking", async () => {
+  using _ = await fakeOnePassword()
+  const { tools, emitted } = await harness({
+    secrets: { MISSING: "op://Agents/Missing/credential", BLANK: "op://Agents/Empty/credential", UNSET: "" },
+  })
+  const get = (name: string) => tools.get("get")!.execute({ name }, context)
+  await expect(get("MISSING")).rejects.toThrow(
+    "Couldn't read MISSING from 1Password (op://Agents/Missing/credential): [ERROR] could not read secret 'op://Agents/Missing/credential': item not found",
+  )
+  await expect(get("BLANK")).rejects.toThrow("Couldn't read BLANK from 1Password (op://Agents/Empty/credential): the field is empty.")
+  await expect(get("UNSET")).rejects.toThrow("UNSET is empty in the opencode-blindfold secrets option")
+  expect(emitted).toHaveLength(0)
+})
+
+test("explains when the 1Password CLI isn't installed", async () => {
+  const path = process.env.PATH
+  process.env.PATH = mkdtempSync(join(tmpdir(), "blindfold-empty-"))
+  try {
+    const { tools } = await harness({ secrets: { ZEN_KEY: "op://Agents/Zen/credential" } })
+    await expect(tools.get("get")!.execute({ name: "ZEN_KEY" }, context)).rejects.toThrow("the 1Password CLI (op) isn't installed.")
+  } finally {
+    process.env.PATH = path
+  }
+})
+
 test("rejects invalid options and empty secrets", async () => {
+  await expect(harness({ secrets: ["API_TOKEN"] })).rejects.toThrow("secrets option must be an object")
+  await expect(harness({ secrets: { api_token: "x" } })).rejects.toThrow("secrets names must match")
+  await expect(harness({ secrets: { API_TOKEN: 1 } })).rejects.toThrow("secrets.API_TOKEN option must be a string")
   await expect(harness({ shell: { enabled: "yes" } })).rejects.toThrow("shell.enabled option")
   await expect(harness({ shell: true })).rejects.toThrow("shell option must be an object")
   await expect(harness({ shell: { enabled: false }, codemode: { enabled: false } })).rejects.toThrow("secrets cannot be used")

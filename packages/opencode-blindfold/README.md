@@ -71,6 +71,28 @@ The values shown are the defaults.
 - `shell.approve`: ask for your approval before running shell commands that name a secret.
 - `codemode.enabled`: provide `blindfold.get` in Code Mode. When `false`, it's a regular tool that never returns the value. At least one of `shell.enabled` and `codemode.enabled` must be `true`.
 
+### Configured secrets
+
+To skip the dialog, list secrets in the `secrets` option. Each one maps a name to a value:
+
+```json
+{
+  "package": "opencode-blindfold",
+  "options": {
+    "secrets": {
+      "OPENCODE_API_KEY": "op://Agents/OpenCode Zen/credential",
+      "GITHUB_TOKEN": "{env:GITHUB_TOKEN}"
+    }
+  }
+}
+```
+
+- Values starting with `op://` are 1Password [secret references](https://developer.1password.com/docs/cli/secret-reference-syntax/). They're read with the 1Password CLI (`op read`) the first time the agent asks for them, so 1Password may ask you to unlock it. If the read fails, the agent gets an error explaining why instead of a dialog.
+- Any other value is the secret itself. Use OpenCode's `{env:NAME}` or `{file:path}` substitution to keep it out of the config file.
+- An empty value, such as an `{env:NAME}` whose variable isn't set, is an error when the agent asks for it.
+
+The agent is told which names are configured. Other names still open the dialog.
+
 ## Limitations
 
 Redaction guards against accidental exposure, not a hostile agent. Once you approve a shell command, that program has the real value and can send it anywhere. An agent can transform a value in ways redaction cannot recognize, such as reversing it or printing part of it, or send it to a server it controls. Live shell output shown in the TUI while a command runs is not redacted; the final result is.

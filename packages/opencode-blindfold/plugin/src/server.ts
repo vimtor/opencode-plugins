@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { Plugin } from "@opencode/plugin"
 import { Error as ToolError, type Result } from "@opencode/plugin/promise/tool"
@@ -10,6 +11,9 @@ const GET_TOOL_IDS = new Set([`${NAMESPACE}_${GET_TOOL}`, `${NAMESPACE}.${GET_TO
 const NAME_PATTERN = "^[A-Z_][A-Z0-9_]*$"
 const PROMPT_TIMEOUT = 10 * 60_000
 const ACK_TIMEOUT = 5_000
+const ONEPASSWORD_PREFIX = "op://"
+// Long enough for 1Password to ask the user to unlock it.
+const ONEPASSWORD_TIMEOUT = 2 * 60_000
 
 type Answer = { status: "submitted"; value: string } | { status: "cancelled" | "timeout" | "unavailable" }
 type Pending = { finish: (answer: Answer) => void; acknowledge: () => void }
@@ -26,6 +30,7 @@ function failure(name: string, status: Exclude<Answer["status"], "submitted">) {
 type Settings = {
   shell: { enabled: boolean; approve: boolean }
   codemode: { enabled: boolean }
+  secrets: Map<string, string>
 }
 
 function group(options: Record<string, unknown>, key: string) {
@@ -44,12 +49,23 @@ function boolean(options: Record<string, unknown>, key: string, name: string, fa
   return value
 }
 
+function getSecrets(options: Record<string, unknown>) {
+  const secrets = new Map<string, string>()
+  for (const [name, value] of Object.entries(group(options, "secrets"))) {
+    if (!new RegExp(NAME_PATTERN).test(name)) throw new Error(`opencode-blindfold secrets names must match ${NAME_PATTERN}, got ${name}`)
+    if (typeof value !== "string") throw new Error(`opencode-blindfold secrets.${name} option must be a string`)
+    secrets.set(name, value)
+  }
+  return secrets
+}
+
 function getSettings(options: Record<string, unknown>): Settings {
   const shell = group(options, "shell")
   const codemode = group(options, "codemode")
   const settings = {
     shell: { enabled: boolean(shell, "shell", "enabled", true), approve: boolean(shell, "shell", "approve", true) },
     codemode: { enabled: boolean(codemode, "codemode", "enabled", true) },
+    secrets: getSecrets(options),
   }
   if (!settings.shell.enabled && !settings.codemode.enabled) {
     throw new Error("opencode-blindfold needs shell.enabled or codemode.enabled, otherwise secrets cannot be used")
@@ -62,13 +78,27 @@ function mentioned(names: string[], command: string) {
   return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
+function readOnePassword(name: string, reference: string) {
+  return new Promise<string>((resolve, reject) => {
+    execFile("op", ["read", "--no-newline", reference], { timeout: ONEPASSWORD_TIMEOUT }, (error, stdout, stderr) => {
+      const fail = (detail: string) => reject(new Error(`Couldn't read ${name} from 1Password (${reference}): ${detail}`))
+      if (error && (error as NodeJS.ErrnoException).code === "ENOENT") return fail("the 1Password CLI (op) isn't installed.")
+      if (error && error.killed) return fail("timed out waiting for 1Password. Check that it's unlocked.")
+      if (error) return fail(stderr.trim() || error.message)
+      if (stdout === "") return fail("the field is empty.")
+      resolve(stdout)
+    })
+  })
+}
+
 function instructions(settings: Settings) {
   const call = settings.codemode.enabled ? "`tools.blindfold.get({ name, reason })` in Code Mode" : "the `blindfold_get` tool"
   return [
     `When a task needs a secret such as an API key, token, or password, call ${call}; it asks the user privately if the secret isn't stored yet.`,
+    settings.secrets.size > 0 ? `The user has configured these secrets: ${[...settings.secrets.keys()].join(", ")}.` : undefined,
     "Never ask the user to paste secrets into the chat.",
     "Secret values are redacted from tool output, so you won't see them even if you print them; you'll see `[REDACTED:NAME]` instead.",
-  ].join(" ")
+  ].filter(Boolean).join(" ")
 }
 
 function shellUsage(settings: Settings) {
@@ -101,6 +131,11 @@ export default Plugin.define({
     const settings = getSettings(ctx.options)
     const redactor = new Redactor()
     const pending = new Map<string, Pending>()
+
+    // Plain values are known upfront, so they're redacted and reach shell commands before any get.
+    for (const [name, source] of settings.secrets) {
+      if (source !== "" && !source.startsWith(ONEPASSWORD_PREFIX)) redactor.set(name, source)
+    }
 
     const rpc = await ctx.rpc.register(Blindfold, {
       submit: async (input) => {
@@ -165,11 +200,23 @@ export default Plugin.define({
         // Another call may have stored it while this one waited.
         const stored = redactor.get(name)
         if (stored !== undefined && !replace) return stored
-        const answer = await ask({ sessionID: request.sessionID, name, reason })
-        if (answer.status !== "submitted") throw new Error(failure(name, answer.status))
-        redactor.set(name, answer.value)
-        return answer.value
+        const value = await resolve({ sessionID: request.sessionID, name, reason })
+        redactor.set(name, value)
+        return value
       })
+    }
+
+    async function resolve(request: { sessionID: string; name: string; reason: string }) {
+      const { name } = request
+      const source = settings.secrets.get(name)
+      if (source === undefined) {
+        const answer = await ask(request)
+        if (answer.status !== "submitted") throw new Error(failure(name, answer.status))
+        return answer.value
+      }
+      if (source === "") throw new Error(`${name} is empty in the opencode-blindfold secrets option, for example because its {env:...} variable isn't set.`)
+      if (source.startsWith(ONEPASSWORD_PREFIX)) return readOnePassword(name, source)
+      return source
     }
 
     await ctx.tool.transform((editor) => {
