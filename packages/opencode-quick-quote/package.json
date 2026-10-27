@@ -9,7 +9,8 @@
       "types": "./dist/tui.d.ts",
       "import": "./dist/tui.js",
       "default": "./dist/tui.js"
-    }
+    },
+    "./gui-experimental": "./dist/gui-experimental.cjs"
   },
   "files": [
     "dist",
@@ -18,10 +19,10 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && vite build",
     "typecheck": "tsc --noEmit",
     "test": "bun --conditions=browser test",
-    "smoke": "bun -e \"import('./dist/tui.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 CLI plugin export') })\"",
+    "smoke": "bun -e \"import('./dist/tui.js').then((m) => { if (!m.default?.id || typeof m.default.setup !== 'function') throw new Error('missing V2 CLI plugin export') })\" && bun --conditions=import -e \"if (typeof require('./dist/gui-experimental.cjs').default?.setup !== 'function') throw new Error('missing GUI plugin export')\"",
     "pack:dry-run": "bun pm pack --dry-run",
     "prepack": "bun run build && bun run smoke",
     "prepublishOnly": "bun run prepack && bun run typecheck"
@@ -30,6 +31,7 @@
     "opencode",
     "opencode-plugin",
     "opencode-tui",
+    "opencode-desktop",
     "plugin",
     "quote",
     "autocomplete",
@@ -51,7 +53,7 @@
     "provenance": true
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.28",
+    "@opencode/plugin": "2.2.0",
     "marked": "17.0.1"
   },
   "peerDependencies": {
@@ -61,6 +63,8 @@
   "devDependencies": {
     "@opencode/theme": "2.0.28",
     "@opentui/core": "0.5.17",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "vite-plugin-solid": "^2.11.14"
   }
 }

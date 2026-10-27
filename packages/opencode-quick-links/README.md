@@ -1,19 +1,21 @@
 # opencode-quick-links
 
-OpenCode TUI plugin for searching and opening links from the active conversation.
+OpenCode plugin for searching and opening links from the active conversation.
 
-Requires OpenCode V2 (beta).
+Requires OpenCode V2 (beta). OpenCode Desktop support requires OpenCode 2.2.0 or later.
 
 ## Install
 
-Add the package to your global `~/.config/opencode/cli.json`:
+Add the package to your global `~/.config/opencode/opencode.json` to use it in both the TUI and OpenCode Desktop:
 
 ```json
 {
-  "$schema": "https://opencode.ai/v2/cli.json",
+  "$schema": "https://opencode.ai/config.json",
   "plugins": ["opencode-quick-links"]
 }
 ```
+
+OpenCode Desktop only loads plugins from the global `opencode.json`. To use the plugin in the TUI alone, you can list it in `~/.config/opencode/cli.json` instead. Use one file or the other, not both.
 
 OpenCode installs npm plugins automatically at startup.
 
@@ -23,13 +25,15 @@ Select **Open session links** from the command palette or run `/links`. Search t
 
 The plugin scans the active conversation when you open the dialog. It includes HTTP and HTTPS links from user and assistant text, excludes tool calls and outputs, lists the most recent first, and removes duplicates.
 
+OpenCode Desktop offers the same command and `/links`, and opens the link in your default browser.
+
 ## Configure
 
-No shortcut is assigned by default. Set `options.keybind` on the plugin entry in `cli.json`:
+No shortcut is assigned by default. Set `options.keybind` on the plugin entry. The TUI and OpenCode Desktop both use it, and you can also change the Desktop shortcut in **Settings > Shortcuts**:
 
 ```json
 {
-  "$schema": "https://opencode.ai/v2/cli.json",
+  "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
       "package": "opencode-quick-links",

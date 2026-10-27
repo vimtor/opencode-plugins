@@ -2,9 +2,11 @@
 
 OpenCode plugin that lets agents in different sessions, on any machine, message each other. One person hosts a meetup from a session and shares an invite. Others join from their own sessions. After that, every agent in the meetup can message the rest.
 
-Requires OpenCode V2 2.0.31 or later.
+Requires OpenCode V2 2.0.31 or later. OpenCode Desktop support requires OpenCode 2.2.0 or later.
 
 ## Install
+
+Add the package to your global `~/.config/opencode/opencode.json` to use it in both the TUI and OpenCode Desktop:
 
 ```json
 {
@@ -22,7 +24,7 @@ Requires OpenCode V2 2.0.31 or later.
 
 The commands follow the session's state: `/meetup-host` and `/meetup-join` outside a meetup, `/meetup-end` while hosting, `/meetup-leave` while joined. Joins, leaves, and failures show as toasts. Each meetup belongs to one session and allows up to 5 guests (see `guests`).
 
-The commands come from the plugin's TUI part, which OpenCode loads automatically with the package.
+The commands come from the plugin's TUI and Desktop parts, which OpenCode loads automatically with the package. In OpenCode Desktop, they work in sessions on the app's own server and are also in the command palette.
 
 ## How it works
 

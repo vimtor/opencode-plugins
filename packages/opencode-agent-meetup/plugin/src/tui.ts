@@ -1,6 +1,7 @@
 import { Plugin } from "@opencode/plugin/tui"
 import type { KeymapCommand, ToastOptions } from "@opencode/plugin/tui/context"
 import { createEffect } from "solid-js"
+import { changeMessage, inviteMessage } from "./messages.js"
 import { Meetup, type MeetupChanged, type MeetupResult, type MeetupRole } from "./rpc.js"
 
 const SLOW_HOST_MS = 1_000
@@ -47,15 +48,7 @@ export default Plugin.define({
       setRole(id, "host")
       const copy = await ctx.ui.dialog.confirm({
         title: "Meetup open",
-        message: [
-          "Share this invite. Others join with /meetup-join.",
-          "",
-          result.invite,
-          "",
-          result.expires
-            ? `Anyone with it can message this session for ${result.expires}.`
-            : "Anyone with it can message this session until you end it.",
-        ].join("\n"),
+        message: inviteMessage(result.invite, result.expires),
         label: { confirm: "Copy", cancel: "Close" },
       })
       if (!copy) return
@@ -97,14 +90,8 @@ export default Plugin.define({
     const stopChanged = meetup.events.on("changed", (event) => {
       const data = event.data as MeetupChanged
       setRole(data.sessionID, data.role)
-      const title = ctx.data.session.get(data.sessionID)?.title
-      const suffix = title ? ` in ${title}` : ""
-      if (data.kind === "joined" && data.role === "host")
-        toast({ variant: "success", message: `${data.peer} joined the meetup${suffix}.` })
-      if (data.kind === "left") toast({ variant: "warning", message: `${data.peer} left the meetup${suffix}.` })
-      if (data.kind === "ended") toast({ variant: "warning", message: `${data.reason ?? "Meetup ended"}${suffix}.` })
-      if (data.kind === "paused")
-        toast({ variant: "warning", message: `Paused auto-replies to ${data.peer}${suffix}. Send a prompt to resume.` })
+      const change = changeMessage(data, ctx.data.session.get(data.sessionID)?.title)
+      if (change) toast(change)
     })
 
     const commands = (role: MeetupRole | undefined): KeymapCommand[] => {
