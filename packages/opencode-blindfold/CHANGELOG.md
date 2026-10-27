@@ -1,5 +1,11 @@
 # opencode-blindfold
 
+## 0.5.0
+
+### Minor Changes
+
+- 5ff1735: Add OpenCode Desktop support: Desktop asks for requested secrets in a dialog that hides what you type, and closes it when another client answers.
+
 ## 0.4.1
 
 ### Patch Changes

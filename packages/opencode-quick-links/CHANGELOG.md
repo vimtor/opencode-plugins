@@ -1,5 +1,11 @@
 # opencode-quick-links
 
+## 1.3.0
+
+### Minor Changes
+
+- 5ff1735: Add OpenCode Desktop support: **Open session links** and `/links` in Desktop list the conversation's links, with the same `keybind` option. List the plugin in the global `opencode.json` to use it in both.
+
 ## 1.2.1
 
 ### Patch Changes
