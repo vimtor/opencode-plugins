@@ -47,6 +47,11 @@ bun run --filter opencode-postgres typecheck
 bun run --filter opencode-postgres test
 ```
 
+Plugins with a TUI part also ship an OpenCode Desktop part, `plugin/src/gui.ts`, which `vite build`
+bundles into `dist/gui-experimental.cjs`. Desktop loads plugins only from the global
+`~/.config/opencode/opencode.json`, so add the package directory there and run
+`bunx vite build --watch` in it to reload the desktop part on each change.
+
 Releases use Changesets and npm trusted publishing. The release workflow installs
 Node.js and the npm CLI for publishing; dependency installation and tests use Bun.
 

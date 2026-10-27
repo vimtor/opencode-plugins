@@ -9,5 +9,6 @@
     "rootDir": "plugin/src",
     "sourceMap": true
   },
-  "include": ["plugin/src/**/*.ts"]
+  "include": ["plugin/src/**/*.ts"],
+  "exclude": ["plugin/src/gui.ts"]
 }

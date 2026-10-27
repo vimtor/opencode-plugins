@@ -15,16 +15,29 @@ Escape dismisses the list and leaves your draft intact. Enter with no matches
 keeps the search open. List items are individually selectable; code blocks and
 tables stay together. Completion is disabled inside fenced code and shell mode.
 
+## OpenCode Desktop
+
+OpenCode Desktop 2.2.0 or later has no inline list. Run `/quote`, or
+**Quote the last reply** from the command palette, to pick a paragraph from the
+same response group. Add words after `/quote` to filter, such as `/quote cache`.
+The paragraph is attached to your prompt as a quote, and its comment editor
+opens so you can reply to it.
+
 ## Install
 
-Add to `plugins` in `~/.config/opencode/cli.json`:
+Add the package to your global `~/.config/opencode/opencode.json` to use it in
+both the TUI and OpenCode Desktop:
 
 ```json
 {
-  "$schema": "https://opencode.ai/v2/cli.json",
+  "$schema": "https://opencode.ai/config.json",
   "plugins": ["opencode-quick-quote"]
 }
 ```
+
+OpenCode Desktop only loads plugins from the global `opencode.json`. To use the
+plugin in the TUI alone, you can list it in `~/.config/opencode/cli.json`
+instead. Use one file or the other, not both.
 
 ## Try locally
 
@@ -35,7 +48,7 @@ bun install
 bun run --cwd packages/opencode-quick-quote build
 ```
 
-Add the absolute package directory to `plugins` in `~/.config/opencode/cli.json`:
+Add the absolute package directory to `plugins` in `~/.config/opencode/opencode.json`:
 
 ```json
 {

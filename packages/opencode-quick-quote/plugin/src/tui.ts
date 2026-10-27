@@ -8,7 +8,7 @@ import {
   type Renderable,
 } from "@opentui/core"
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js"
-import { blockquote, filterParagraphs, paragraphs, quoteTrigger } from "./quotes.js"
+import { blockquote, filterParagraphs, latestReplies, paragraphs, quoteTrigger } from "./quotes.js"
 
 type Prompt = { readonly sessionID?: string; readonly mode: "normal" | "shell" }
 
@@ -229,18 +229,7 @@ function mount(ctx: Plugin.Context, prompt: Prompt) {
   }
 
   createEffect(() => {
-    const messages = prompt.sessionID ? ctx.data.session.message.list(prompt.sessionID) : []
-    const replies: string[] = []
-    for (let index = messages.length - 1; index >= 0; index--) {
-      const message = messages[index]
-      // Group replies across background notifications, stopping at their user
-      // prompt. While a new prompt is unanswered, keep the last available group.
-      if (message.type === "user" && replies.length) break
-      if (message.type !== "assistant") continue
-      const text = message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("\n\n")
-      if (text.trim()) replies.push(text)
-    }
-    replies.reverse()
+    const replies = latestReplies(prompt.sessionID ? ctx.data.session.message.list(prompt.sessionID) : [])
     const signature = JSON.stringify(replies)
     if (signature !== source) {
       source = signature

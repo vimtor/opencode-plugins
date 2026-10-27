@@ -1,4 +1,22 @@
+import type { Plugin } from "@opencode/plugin/tui"
 import { lexer, type Tokens } from "marked"
+
+type Message = ReturnType<Plugin.Context["data"]["session"]["message"]["list"]>[number]
+
+/** The text of the latest assistant replies, oldest first. */
+export function latestReplies(messages: readonly Message[]): string[] {
+  const replies: string[] = []
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]
+    // Group replies across background notifications, stopping at their user
+    // prompt. While a new prompt is unanswered, keep the last available group.
+    if (message.type === "user" && replies.length) break
+    if (message.type !== "assistant") continue
+    const text = message.content.flatMap((part) => part.type === "text" ? [part.text] : []).join("\n\n")
+    if (text.trim()) replies.push(text)
+  }
+  return replies.reverse()
+}
 
 export function paragraphs(text: string): string[] {
   return lexer(text.replace(/\r\n?/g, "\n")).flatMap((token) => {

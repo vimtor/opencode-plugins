@@ -1,19 +1,21 @@
 # opencode-pr-link
 
-OpenCode TUI plugin for opening the current branch's pull request in the browser.
+OpenCode plugin for opening the current branch's pull request in the browser.
 
-Requires OpenCode V2 (beta) and an authenticated [GitHub CLI](https://cli.github.com) (`gh`).
+Requires OpenCode V2 (beta) and an authenticated [GitHub CLI](https://cli.github.com) (`gh`). OpenCode Desktop support requires OpenCode 2.2.0 or later.
 
 ## Install
 
-Add the package to your global `~/.config/opencode/cli.json`:
+Add the package to your global `~/.config/opencode/opencode.json` to use it in both the TUI and OpenCode Desktop:
 
 ```json
 {
-  "$schema": "https://opencode.ai/v2/cli.json",
+  "$schema": "https://opencode.ai/config.json",
   "plugins": ["opencode-pr-link"]
 }
 ```
+
+OpenCode Desktop only loads plugins from the global `opencode.json`. To use the plugin in the TUI alone, you can list it in `~/.config/opencode/cli.json` instead. Use one file or the other, not both.
 
 OpenCode installs npm plugins automatically at startup.
 
@@ -25,13 +27,15 @@ Inside a session, the plugin uses the session's directory, so sessions in Git wo
 
 The plugin runs `gh pr view` in that directory to find the pull request. A warning toast explains when there is nothing to open, such as a branch without a pull request; an error toast reports failures, such as a missing or signed-out `gh`.
 
+In OpenCode Desktop, the command works inside a session and runs `gh` from the app, which also looks for it in `/opt/homebrew/bin` and `/usr/local/bin`.
+
 ## Configure
 
-No shortcut is assigned by default. Set `options.keybind` on the plugin entry in `cli.json`:
+No shortcut is assigned by default. Set `options.keybind` on the plugin entry. The TUI and OpenCode Desktop both use it, and you can also change the Desktop shortcut in **Settings > Shortcuts**:
 
 ```json
 {
-  "$schema": "https://opencode.ai/v2/cli.json",
+  "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
       "package": "opencode-pr-link",

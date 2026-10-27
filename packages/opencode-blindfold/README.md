@@ -2,14 +2,14 @@
 
 OpenCode plugin that lets agents use secrets you provide without seeing their values.
 
-Requires OpenCode V2 (beta) and the TUI.
+Requires OpenCode V2 (beta) and the TUI, or OpenCode Desktop 2.2.0 or later.
 
 ## How it works
 
 1. When a task needs a secret, the agent calls `blindfold.get` with a name, such as `GITHUB_TOKEN`, and a reason. If the secret isn't stored yet, you're asked for it. The plugin's system instructions tell the agent to do this instead of asking you to paste secrets into the chat.
    - In Code Mode (preferred), `tools.blindfold.get({ name, reason })` returns the value to the running code only.
    - With Code Mode disabled, `blindfold_get` is a regular tool that stores the secret and never returns the value.
-2. The TUI opens a dialog where you paste the value. The value goes to the plugin and never to the agent. If you don't answer within 10 minutes, the request fails.
+2. The TUI or OpenCode Desktop opens a dialog where you paste the value. Desktop hides what you type. The value goes to the plugin and never to the agent. If you don't answer within 10 minutes, the request fails.
 3. The agent uses the secret without reading it:
    - In Code Mode, through the value `tools.blindfold.get` returns, e.g. in a `fetch` header.
    - A shell command receives it as an environment variable only when the command names it, e.g. `GH_TOKEN="$GITHUB_TOKEN" gh api user`. OpenCode asks you to approve such commands. Commands that don't name it, such as `printenv`, never get the value.
@@ -22,9 +22,9 @@ Secrets are kept in memory and are lost when the OpenCode service restarts. Enco
 
 ## Install
 
-The package has a server plugin and a TUI plugin. Add it to both configs.
+The package has a server plugin, a TUI plugin, and an OpenCode Desktop plugin. Add it to both configs.
 
-Server plugin, in `~/.config/opencode/opencode.json`:
+Server and Desktop plugin, in `~/.config/opencode/opencode.json`:
 
 ```json
 {
@@ -44,7 +44,7 @@ TUI plugin, in `~/.config/opencode/cli.json`:
 
 OpenCode installs npm plugins automatically at startup.
 
-The TUI plugin must be in `cli.json` even when the server plugin is configured for a project, because the TUI loads project plugins only from the directory where it was started. If no TUI responds within 5 seconds, the request fails and the agent is told to check this.
+The TUI plugin must be in `cli.json` even when the server plugin is configured for a project, because the TUI loads project plugins only from the directory where it was started. OpenCode Desktop needs only the `opencode.json` entry. If no TUI or Desktop window responds within 5 seconds, the request fails and the agent is told to check this.
 
 ## Configure
 

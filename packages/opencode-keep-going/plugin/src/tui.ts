@@ -1,26 +1,5 @@
 import { Plugin } from "@opencode/plugin/tui"
-
-const DEFAULT_HIDDEN = true
-const DEFAULT_MESSAGE = "Continue."
-
-type KeepGoingOptions = {
-  hidden?: boolean
-  message?: string
-}
-
-function getHidden(options: KeepGoingOptions) {
-  if (options.hidden === undefined) return DEFAULT_HIDDEN
-  if (typeof options.hidden !== "boolean") throw new Error("opencode-keep-going hidden option must be a boolean")
-  return options.hidden
-}
-
-function getMessage(options: KeepGoingOptions) {
-  if (options.message === undefined) return DEFAULT_MESSAGE
-  if (typeof options.message !== "string" || options.message.trim() === "") {
-    throw new Error("opencode-keep-going message option must be a non-empty string")
-  }
-  return options.message
-}
+import { getHidden, getMessage, type KeepGoingOptions } from "./options.js"
 
 export default Plugin.define({
   id: "keep-going",

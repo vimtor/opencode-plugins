@@ -3,6 +3,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 import { Plugin } from "@opencode/plugin/tui"
 import { parse, type ParseError } from "jsonc-parser"
+import { tab } from "./tab.js"
 
 type Scope = "cwd" | "global"
 
@@ -29,9 +30,6 @@ function tabScope(): Scope {
   const root = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
   return readScope(process.env.OPENCODE_CLI_CONFIG_CONTENT) ?? readScope(readFile(join(root, "opencode", "cli.json"))) ?? "cwd"
 }
-
-// Session metadata `tab: false` keeps a session from opening when it's created; setting `tab: true` later opens it.
-const tab = (metadata: { readonly [key: string]: unknown } | undefined) => metadata?.tab
 
 export default Plugin.define({
   id: "opencode-external-tabs",
