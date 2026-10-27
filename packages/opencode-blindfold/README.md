@@ -93,13 +93,13 @@ To skip the dialog, list secrets in the `secrets` option. Each one maps a name t
 
 The agent is told which names are configured. Other names still open the dialog.
 
-If you're signed in to more than one 1Password account, blindfold reads from `my.1password.com`. To use another account, set `onepassword.account`:
+If you're signed in to more than one 1Password account, blindfold reads from `my.1password.com`. To use another account, set `1password.account`:
 
 ```json
 {
   "package": "opencode-blindfold",
   "options": {
-    "onepassword": { "account": "acme.1password.com" },
+    "1password": { "account": "acme.1password.com" },
     "secrets": { "OPENCODE_API_KEY": "op://Agents/OpenCode Zen/credential" }
   }
 }

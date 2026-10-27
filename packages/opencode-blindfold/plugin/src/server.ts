@@ -62,9 +62,9 @@ function getSecrets(options: Record<string, unknown>) {
 }
 
 function getOnePassword(options: Record<string, unknown>) {
-  const account = group(options, "onepassword").account
+  const account = group(options, "1password").account
   if (account === undefined) return {}
-  if (typeof account !== "string" || account === "") throw new Error("opencode-blindfold onepassword.account option must be a non-empty string")
+  if (typeof account !== "string" || account === "") throw new Error("opencode-blindfold 1password.account option must be a non-empty string")
   return { account }
 }
 
