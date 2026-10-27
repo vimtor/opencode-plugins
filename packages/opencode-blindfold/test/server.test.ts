@@ -338,7 +338,7 @@ test("reads from the configured 1Password account", async () => {
   using op = await fakeOnePassword({ accounts: 2 })
   const { tools } = await harness({
     secrets: { ZEN_KEY: "op://Agents/Zen/credential" },
-    onepassword: { account: "acme.1password.com" },
+    "1password": { account: "acme.1password.com" },
   })
   expect(await tools.get("get")!.execute({ name: "ZEN_KEY" }, context)).toEqual({ content: "zen-secret-123" })
   expect(op.calls()).toEqual(["read --no-newline --account acme.1password.com op://Agents/Zen/credential"])
@@ -373,7 +373,7 @@ test("rejects invalid options and empty secrets", async () => {
   await expect(harness({ secrets: ["API_TOKEN"] })).rejects.toThrow("secrets option must be an object")
   await expect(harness({ secrets: { api_token: "x" } })).rejects.toThrow("secrets names must match")
   await expect(harness({ secrets: { API_TOKEN: 1 } })).rejects.toThrow("secrets.API_TOKEN option must be a string")
-  await expect(harness({ onepassword: { account: "" } })).rejects.toThrow("onepassword.account option must be a non-empty string")
+  await expect(harness({ "1password": { account: "" } })).rejects.toThrow("1password.account option must be a non-empty string")
   await expect(harness({ shell: { enabled: "yes" } })).rejects.toThrow("shell.enabled option")
   await expect(harness({ shell: true })).rejects.toThrow("shell option must be an object")
   await expect(harness({ shell: { enabled: false }, codemode: { enabled: false } })).rejects.toThrow("secrets cannot be used")
