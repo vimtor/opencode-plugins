@@ -1,5 +1,11 @@
 # opencode-blindfold
 
+## 0.4.1
+
+### Patch Changes
+
+- 77d3277: Rename the `onepassword` option to `1password`, e.g. `"1password": { "account": "acme.1password.com" }`.
+
 ## 0.4.0
 
 ### Minor Changes
