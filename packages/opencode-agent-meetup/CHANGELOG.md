@@ -1,5 +1,11 @@
 # opencode-agent-meetup
 
+## 0.3.0
+
+### Minor Changes
+
+- 5ff1735: Add OpenCode Desktop support: `/meetup-host`, `/meetup-join`, `/meetup-end`, and `/meetup-leave` work in Desktop sessions, with the same dialogs and toasts as the TUI.
+
 ## 0.2.1
 
 ### Patch Changes
