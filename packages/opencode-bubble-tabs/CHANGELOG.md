@@ -1,5 +1,11 @@
 # opencode-bubble-tabs
 
+## 0.4.0
+
+### Minor Changes
+
+- 388b27b: Reopen a closed tab at the front when its session finishes or needs your input. Only sessions that had a tab while OpenCode was running reopen. Set the new `reopen` option to `false` to leave closed tabs closed.
+
 ## 0.3.0
 
 ### Minor Changes
