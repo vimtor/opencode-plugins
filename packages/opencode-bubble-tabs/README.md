@@ -23,7 +23,9 @@ OpenCode installs npm plugins automatically at startup.
 
 A session's tab moves to the front when its turn finishes or fails, or when it asks for a permission or a question. Permissions and questions from subagents move their parent session's tab.
 
-In OpenCode Desktop, the plugin moves the tabs of sessions on the app's own server, in every window that has them open.
+If you closed the session's tab, it opens again at the front, in the background. Only sessions that had a tab while OpenCode was running reopen, so sessions from other clients or directories stay out of your tabs. The TUI notices open tabs at startup, when you submit a prompt, and whenever a session finishes or asks for input.
+
+In OpenCode Desktop, the plugin moves and reopens the tabs of sessions on the app's own server, in every window that has them open.
 
 ## Configure
 
@@ -46,6 +48,22 @@ Set `options.on` to choose what moves a tab:
 - `"prompt"`: you submit a prompt.
 
 Defaults to `["done", "ask"]`.
+
+Set `options.reopen` to `false` to leave closed tabs closed:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "opencode-bubble-tabs",
+      "options": { "reopen": false }
+    }
+  ]
+}
+```
+
+Defaults to `true`.
 
 ## Local Development
 

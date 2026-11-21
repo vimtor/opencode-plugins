@@ -20,6 +20,7 @@ async function setup(input: {
   const handlers = new Map<string, Set<Handler>>()
   const tabs = [...(input.tabs ?? ["ses_a", "ses_b", "ses_c"])]
   const moves: [string, number][] = []
+  const opens: string[] = []
   const cleanup = await bubbleTabs.setup({
     options: input.options ?? {},
     data: {
@@ -35,9 +36,18 @@ async function setup(input: {
         enabled: () => input.enabled ?? true,
         list: () => tabs.map((sessionID) => ({ sessionID, active: sessionID === "ses_c", busy: false, attention: false })),
         move: (sessionID: string, index: number) => {
+          if (!tabs.includes(sessionID)) return false
           moves.push([sessionID, index])
           tabs.splice(tabs.indexOf(sessionID), 1)
           tabs.splice(index, 0, sessionID)
+          return true
+        },
+        // The TUI adds an opened tab once it has saved it.
+        open: (sessionID: string) => {
+          opens.push(sessionID)
+          setTimeout(() => {
+            if (!tabs.includes(sessionID)) tabs.push(sessionID)
+          }, 30)
           return true
         },
       },
@@ -46,7 +56,8 @@ async function setup(input: {
   const emit = (type: string, data: unknown) => {
     for (const handler of handlers.get(type) ?? []) handler({ type, data })
   }
-  return { tabs, moves, emit, handlers, cleanup: async () => { if (cleanup) await cleanup() } }
+  const close = (sessionID: string) => tabs.splice(tabs.indexOf(sessionID), 1)
+  return { tabs, moves, opens, emit, close, handlers, cleanup: async () => { if (cleanup) await cleanup() } }
 }
 
 const message = (sessionID: string, type = "user") => ({
@@ -135,15 +146,42 @@ test("moves the parent tab when a subagent needs input", async () => {
 })
 
 test("ignores subagent completions", async () => {
-  const { moves, emit } = await setup({ parents: { ses_child: "ses_c" } })
+  const { moves, opens, emit } = await setup({ parents: { ses_child: "ses_c" } })
   emit("session.execution.succeeded", { sessionID: "ses_child" })
+  expect(moves).toEqual([])
+  expect(opens).toEqual([])
+})
+
+test("reopens a closed tab at the front when its session finishes", async () => {
+  const { tabs, emit, close } = await setup()
+  close("ses_b")
+  emit("session.execution.succeeded", { sessionID: "ses_b" })
+  await Bun.sleep(100)
+  expect(tabs).toEqual(["ses_b", "ses_a", "ses_c"])
+})
+
+test("reopens a tab opened after startup once you prompted it", async () => {
+  const { tabs, emit, close } = await setup()
+  tabs.push("ses_new")
+  emit("session.inbox.enqueued", message("ses_new"))
+  close("ses_new")
+  emit("permission.asked", { id: "per_1", sessionID: "ses_new" })
+  await Bun.sleep(100)
+  expect(tabs).toEqual(["ses_new", "ses_a", "ses_b", "ses_c"])
+})
+
+test("leaves sessions that never had a tab closed", async () => {
+  const { moves, opens, emit } = await setup()
+  emit("session.execution.succeeded", { sessionID: "ses_other" })
+  expect(opens).toEqual([])
   expect(moves).toEqual([])
 })
 
-test("ignores sessions without a tab", async () => {
-  const { moves, emit } = await setup()
-  emit("session.execution.succeeded", { sessionID: "ses_closed" })
-  expect(moves).toEqual([])
+test("leaves closed tabs closed with reopen false", async () => {
+  const { opens, emit, close } = await setup({ options: { reopen: false } })
+  close("ses_b")
+  emit("session.execution.succeeded", { sessionID: "ses_b" })
+  expect(opens).toEqual([])
 })
 
 test("does nothing when tabs are disabled", async () => {
@@ -163,5 +201,11 @@ test("stops listening on cleanup", async () => {
 test.each([["prompts"], "done", [true], {}])("rejects invalid on option %p", (on) => {
   expect(() => bubbleTabs.setup({ options: { on } } as unknown as Plugin.Context)).toThrow(
     'opencode-bubble-tabs on option must be an array of "prompt", "done", or "ask"',
+  )
+})
+
+test.each(["yes", 1, null])("rejects invalid reopen option %p", (reopen) => {
+  expect(() => bubbleTabs.setup({ options: { reopen } } as unknown as Plugin.Context)).toThrow(
+    "opencode-bubble-tabs reopen option must be true or false",
   )
 })

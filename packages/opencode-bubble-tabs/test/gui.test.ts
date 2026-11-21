@@ -47,21 +47,29 @@ function data(parents: Record<string, string> = {}) {
 
 function mount(input: { options?: Record<string, unknown>; parents?: Record<string, string>; server?: string } = {}) {
   const [server, setServer] = createSignal(data(input.parents))
-  const tabs = ["ses_a", "ses_b", "ses_c"].map((id) => ({
+  const tab = (id: string, server = input.server ?? "sidecar") => ({
     key: `tab_${id}`,
-    session: { id, server: { id: input.server ?? "sidecar" } },
+    session: { id, server: { id: server } },
     active: false,
-  }))
+  })
+  const [tabs, setTabs] = createSignal(["ses_a", "ses_b", "ses_c"].map((id) => tab(id)))
   const moves: [string, number][] = []
+  const opens: { server: string; id: string }[] = []
   const ctx = {
     options: input.options ?? {},
     servers: { get: (id: string) => (id === "sidecar" ? { id, data: server() } : undefined) },
     tabs: {
-      list: () => tabs,
+      list: tabs,
       move: (key: string, index: number) => {
         moves.push([key, index])
-        const from = tabs.findIndex((tab) => tab.key === key)
-        tabs.splice(index, 0, ...tabs.splice(from, 1))
+        const next = [...tabs()]
+        const from = next.findIndex((tab) => tab.key === key)
+        next.splice(index, 0, ...next.splice(from, 1))
+        setTabs(next)
+      },
+      open: (session: { server: string; id: string }) => {
+        opens.push(session)
+        setTabs([...tabs(), tab(session.id, session.server)])
       },
     },
   } as unknown as SetupContext<{}>
@@ -69,8 +77,10 @@ function mount(input: { options?: Record<string, unknown>; parents?: Record<stri
     setup(ctx)
     return dispose
   })
-  const order = () => tabs.map((tab) => tab.session.id)
-  return { order, moves, dispose, server, setServer }
+  const order = () => tabs().map((tab) => tab.session.id)
+  const add = (id: string) => setTabs([...tabs(), tab(id)])
+  const close = (id: string) => setTabs(tabs().filter((tab) => tab.session.id !== id))
+  return { order, moves, opens, add, close, dispose, server, setServer }
 }
 
 const message = (sessionID: string, type = "user") => ({ sessionID, item: { type } })
@@ -100,6 +110,37 @@ test("follows the on option", () => {
   expect(order()).toEqual(["ses_c", "ses_a", "ses_b"])
 })
 
+test("reopens a closed tab at the front when its session finishes", () => {
+  const { order, opens, close, server } = mount()
+  close("ses_b")
+  server().emit("session.execution.succeeded", { sessionID: "ses_b" })
+  expect(opens).toEqual([{ server: "sidecar", id: "ses_b" }])
+  expect(order()).toEqual(["ses_b", "ses_a", "ses_c"])
+})
+
+test("reopens a tab opened after startup", () => {
+  const { order, add, close, server } = mount()
+  add("ses_new")
+  close("ses_new")
+  server().emit("form.created", { form: { sessionID: "ses_new" } })
+  expect(order()).toEqual(["ses_new", "ses_a", "ses_b", "ses_c"])
+})
+
+test("leaves sessions that never had a tab closed", () => {
+  const { opens, moves, server } = mount({ parents: { ses_child: "ses_c" } })
+  server().emit("session.execution.succeeded", { sessionID: "ses_other" })
+  server().emit("session.execution.succeeded", { sessionID: "ses_child" })
+  expect(opens).toEqual([])
+  expect(moves).toEqual([])
+})
+
+test("leaves closed tabs closed with reopen false", () => {
+  const { opens, close, server } = mount({ options: { reopen: false } })
+  close("ses_b")
+  server().emit("session.execution.succeeded", { sessionID: "ses_b" })
+  expect(opens).toEqual([])
+})
+
 test("ignores tabs of other servers", () => {
   const { moves, server } = mount({ server: "http://remote:4096" })
   server().emit("session.execution.succeeded", { sessionID: "ses_b" })
@@ -125,4 +166,8 @@ test("rejects an invalid on option", () => {
   expect(() => mount({ options: { on: ["prompts"] } })).toThrow(
     'opencode-bubble-tabs on option must be an array of "prompt", "done", or "ask"',
   )
+})
+
+test("rejects an invalid reopen option", () => {
+  expect(() => mount({ options: { reopen: "yes" } })).toThrow("opencode-bubble-tabs reopen option must be true or false")
 })
