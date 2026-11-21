@@ -11,6 +11,12 @@ export function parseOn(value: unknown): ReadonlySet<Trigger> {
   return new Set(value)
 }
 
+export function parseReopen(value: unknown) {
+  if (value === undefined) return true
+  if (typeof value !== "boolean") throw new Error("opencode-bubble-tabs reopen option must be true or false")
+  return value
+}
+
 type Data = Plugin.Context["data"]
 export type Events = Pick<Data, "on"> & { readonly session: Pick<Data["session"], "root"> }
 
