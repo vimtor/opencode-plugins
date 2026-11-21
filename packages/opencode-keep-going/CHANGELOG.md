@@ -1,5 +1,11 @@
 # opencode-keep-going
 
+## 1.1.1
+
+### Patch Changes
+
+- 09fa3cb: Require Solid 1, which OpenCode uses, so installs no longer pick up Solid 2.
+
 ## 1.1.0
 
 ### Minor Changes
