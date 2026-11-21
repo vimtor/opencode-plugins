@@ -1,5 +1,11 @@
 # opencode-pr-link
 
+## 0.3.1
+
+### Patch Changes
+
+- 09fa3cb: Require Solid 1, which OpenCode uses, so installs no longer pick up Solid 2.
+
 ## 0.3.0
 
 ### Minor Changes
