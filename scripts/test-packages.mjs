@@ -21,9 +21,7 @@ try {
     dependencies[name] = `file:${tarball}`
     cpSync(join(workspace, "test"), join(directory, "test", name), { recursive: true })
   }
-  // OpenCode provides Solid 1, but the plugins' `solid-js: >=1.9.0` peer would resolve to Solid 2 here.
-  const overrides = { "solid-js": "^1.9.15" }
-  writeFileSync(join(directory, "package.json"), JSON.stringify({ private: true, type: "module", dependencies, overrides }))
+  writeFileSync(join(directory, "package.json"), JSON.stringify({ private: true, type: "module", dependencies }))
   execFileSync(process.execPath, [
     "install", "--ignore-scripts", "--linker", "hoisted",
   ], { cwd: directory, stdio: "inherit" })
