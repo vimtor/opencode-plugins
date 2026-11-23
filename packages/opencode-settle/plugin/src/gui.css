@@ -1,0 +1,295 @@
+.settle {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  overflow-y: auto;
+  /* No top padding: the progress bar sits on the panel's top edge. Sticky positions count the scroller's padding,
+     so a padded top would leave a gap above the bar. */
+  padding: 0 16px;
+  color: var(--v2-text-text-base);
+  font-size: 13px;
+  outline: none;
+}
+
+/* Fills the panel, so the footer can sit at its bottom edge whatever the cards' height. */
+.settle-decide {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settle-ask {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+
+/* The app's Markdown sets 14px at 160% on its root; everything in the panel reads at one size. */
+.settle [data-component="markdown"] {
+  color: var(--v2-text-text-muted);
+  font-size: 13px;
+}
+
+/* Set on every element inside, so no rule from the app's Markdown styles (160% on its root) can win back. */
+.settle [data-component="markdown"],
+.settle [data-component="markdown"] :is(p, li, span, div) {
+  line-height: 16px;
+}
+
+/* Code reads one step under the text around it. */
+.settle .settle-code pre {
+  margin: 0;
+}
+
+.settle .settle-code pre,
+.settle .settle-code pre * {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.settle [data-component="markdown"] p {
+  margin: 0;
+}
+
+.settle [data-component="markdown"] p + p {
+  margin-top: 4px;
+}
+
+/* Edge to edge across the top of the panel, stuck there while the cards scroll. It has no track of its own: the tab
+   strip's divider sits right above it, so only the done part draws, as if that line were filling in. */
+.settle-bar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex: none;
+  height: 2px;
+  margin: 0 -16px 4px;
+}
+
+.settle-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--v2-text-text-muted);
+  transition: width 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settle-bar > span {
+    transition: none;
+  }
+}
+
+.settle-question-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settle-position {
+  flex: none;
+  color: var(--v2-text-text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.settle-question {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: var(--font-weight-medium, 500);
+  text-wrap: balance;
+}
+
+.settle-spacer {
+  flex: 1;
+}
+
+.settle-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settle-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settle-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  /* The top is less the title's half-leading (20px line, 13px text), so the gap above its letters matches the bottom's. */
+  padding: 12px 12px 16px;
+  border: 1px solid var(--v2-border-border-muted);
+  border-radius: 8px;
+  background: var(--v2-background-bg-layer-01);
+  cursor: pointer;
+  transition:
+    border-color 400ms ease-out,
+    box-shadow 400ms ease-out,
+    background-color 400ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .settle-card:hover {
+    border-color: var(--v2-border-border-strong);
+    transition-duration: 0ms;
+  }
+}
+
+/* The card you kept: a ring lights at once and fades back. Box-shadow, so nothing moves. */
+.settle-card {
+  box-shadow: 0 0 0 0 transparent;
+}
+
+.settle-card:active,
+.settle-card[data-kept] {
+  border-color: var(--v2-border-border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--v2-border-border-focus) 25%, transparent);
+  background: color-mix(in srgb, var(--v2-border-border-focus) 6%, var(--v2-background-bg-layer-01));
+  transition-duration: 0ms;
+}
+
+/* When a decision finishes, the card you passed on fades before the next question comes in. */
+.settle-pair[data-leaving] .settle-card:not([data-kept]) {
+  opacity: 0.35;
+  transition: opacity 150ms ease-out;
+}
+
+.settle-grow[data-ready] {
+  transition: height 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.settle-grow {
+  overflow: hidden;
+  margin: -4px;
+  padding: 4px;
+  box-sizing: content-box;
+}
+
+.settle-done {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 32px 0;
+  text-align: center;
+  color: var(--v2-icon-icon-muted);
+}
+
+.settle-done-title {
+  margin: 4px 0 0;
+  color: var(--v2-text-text-base);
+  font-weight: var(--font-weight-medium, 500);
+}
+
+.settle-done .settle-lede {
+  margin-bottom: 8px;
+}
+
+/* The option that took the other card's place. Opacity and transform only, so nothing around it moves. */
+.settle-card[data-fresh] {
+  animation: settle-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes settle-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+.settle-card-title {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: var(--font-weight-medium, 500);
+}
+
+/* The description reads as the title's subtitle, so it sits right under it. */
+.settle-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: -10px;
+}
+
+.settle-kbd {
+  min-width: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--v2-border-border-base);
+  border-radius: 4px;
+  color: var(--v2-text-text-muted);
+  font: 11px/16px var(--font-family-mono, ui-monospace, monospace);
+  text-align: center;
+}
+
+.settle-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settle-code {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.settle-html,
+.settle-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--v2-border-border-muted);
+  border-radius: 6px;
+}
+
+/* A mockup is a preview of a screen, so it sits on the app's own page colour rather than the card's tint. */
+.settle-html {
+  background: var(--v2-background-bg-base);
+  color-scheme: normal;
+}
+
+/* Pinned to the bottom of the panel: pushed down when the cards are short, stuck to the edge when they scroll. */
+.settle-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  margin-top: auto;
+  padding: 8px 0 12px;
+  border-top: 1px solid var(--v2-border-border-muted);
+  background: var(--v2-background-bg-base);
+}
+
+.settle-lede {
+  margin: 0;
+  color: var(--v2-text-text-muted);
+}
+
+.settle-error {
+  margin: 0;
+  color: var(--v2-state-fg-danger);
+}
