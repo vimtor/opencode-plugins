@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "opencode-settle",
+  "version": "0.0.0",
+  "description": "OpenCode plugin that lets agents hand you open decisions as a deck you settle two options at a time.",
+  "type": "module",
+  "main": "./dist/server.js",
+  "types": "./dist/server.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc.d.ts",
+      "import": "./dist/rpc.js",
+      "default": "./dist/rpc.js"
+    },
+    "./deck": {
+      "types": "./dist/deck.d.ts",
+      "import": "./dist/deck.js",
+      "default": "./dist/deck.js"
+    },
+    "./run": {
+      "types": "./dist/run.d.ts",
+      "import": "./dist/run.js",
+      "default": "./dist/run.js"
+    },
+    "./gui-experimental": "./dist/gui-experimental.cjs"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "bun --conditions=browser test",
+    "smoke": "bun smoke.mjs",
+    "pack:dry-run": "bun pm pack --dry-run",
+    "prepack": "bun run build && bun run smoke",
+    "prepublishOnly": "bun run prepack && bun run typecheck"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "opencode-desktop",
+    "plugin",
+    "decisions",
+    "questions",
+    "coding-agent",
+    "ai"
+  ],
+  "author": "vimtor",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vimtor/opencode-plugins.git",
+    "directory": "packages/opencode-settle"
+  },
+  "bugs": {
+    "url": "https://github.com/vimtor/opencode-plugins/issues"
+  },
+  "homepage": "https://github.com/vimtor/opencode-plugins/tree/main/packages/opencode-settle#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.3.0"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "vite-plugin-solid": "^2.11.14"
+  }
+}

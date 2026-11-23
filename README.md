@@ -20,6 +20,7 @@ My personal plugins for OpenCode V2 (beta).
 - [`opencode-agent-meetup`](packages/opencode-agent-meetup/README.md): lets agents in different sessions, on any machine, message each other.
 - [`opencode-fallback-model`](packages/opencode-fallback-model/README.md): switches a session to fallback models when its model fails.
 - [`opencode-supervisor`](packages/opencode-supervisor/README.md): has a supervisor model stop the run when the agent breaks your instructions.
+- [`opencode-settle`](packages/opencode-settle/README.md): lets agents hand you open decisions as a deck you settle two options at a time.
 
 ## Development
 
