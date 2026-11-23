@@ -465,6 +465,12 @@ export default Plugin.define({
             return titles.get(id.slice(TAB.length)) ?? ctx.t("title")
           },
           closable: "hover",
+          label: () => (
+            <span class="settle-tab">
+              <ctx.ui.Icon name="checklist" size="small" />
+              <span class="settle-tab-title">{titles.get(id.slice(TAB.length)) ?? ctx.t("title")}</span>
+            </span>
+          ),
         }
         tabs.set(id, tab)
       }

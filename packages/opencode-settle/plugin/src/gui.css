@@ -293,3 +293,16 @@
   margin: 0;
   color: var(--v2-state-fg-danger);
 }
+
+.settle-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settle-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
