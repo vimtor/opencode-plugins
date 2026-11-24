@@ -1,5 +1,11 @@
 # opencode-settle
 
+## 0.1.2
+
+### Patch Changes
+
+- 612d1e4: Show images at their own size, or the width and height the deck gives, instead of stretching them to the card's width.
+
 ## 0.1.1
 
 ### Patch Changes
