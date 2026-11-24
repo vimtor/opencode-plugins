@@ -257,8 +257,15 @@
   display: block;
   width: 100%;
   max-width: 100%;
+  overflow: hidden;
   border: 1px solid var(--v2-border-border-muted);
   border-radius: 6px;
+}
+
+.settle-html > iframe {
+  display: block;
+  border: 0;
+  transform-origin: top left;
 }
 
 /* An image keeps the size the deck gives it, or its own, and only shrinks to fit the card. */
@@ -267,6 +274,7 @@
   width: auto;
   max-width: 100%;
   height: auto;
+  object-fit: contain;
   border-radius: 6px;
 }
 
