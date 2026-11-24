@@ -1,5 +1,11 @@
 # opencode-settle
 
+## 0.1.1
+
+### Patch Changes
+
+- 8cb1f11: Add Discard (D) to drop a decision without answering it, and move the progress bar with every pick.
+
 ## 0.1.0
 
 ### Minor Changes
