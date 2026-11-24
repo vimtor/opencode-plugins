@@ -9,7 +9,7 @@ export type Run = {
   picks: Pick[]
   skips: number
   chosen?: number
-  /** Passed over for good: skipped the second time it came up. */
+  /** Discarded: passed over without an answer. */
   skipped?: boolean
 }
 
@@ -72,20 +72,19 @@ export function pick(deck: Deck, state: State, side: Side): State {
   }
 }
 
-// The first time, a decision moves to the end of the queue. Once it has come back, it's skipped for good.
+/** Moves the current decision to the end of the queue. */
 export function snooze(state: State): State {
   const [id, ...rest] = state.queue
-  if (!id) return state
+  if (!id || rest.length === 0) return state
   const run = state.runs[id]!
-  if (run.skips > 0) return { ...state, queue: rest, runs: { ...state.runs, [id]: { ...run, skipped: true } } }
-  if (rest.length === 0) return state
   return { ...state, queue: [...rest, id], runs: { ...state.runs, [id]: { ...run, skips: run.skips + 1 } } }
 }
 
-/** Whether snoozing the current decision would skip it for good. */
-export function skips(state: State): boolean {
-  const id = state.queue[0]
-  return id !== undefined && state.runs[id]!.skips > 0
+/** Drops the current decision without an answer. */
+export function discard(state: State): State {
+  const [id, ...rest] = state.queue
+  if (!id) return state
+  return { ...state, queue: rest, runs: { ...state.runs, [id]: { ...state.runs[id]!, skipped: true } } }
 }
 
 export function reopen(state: State, id: string): State {
@@ -100,7 +99,7 @@ export function note(state: State, id: string, text: string): State {
   return { ...state, notes: { ...state.notes, [id]: text } }
 }
 
-/** Picks made out of picks needed, so progress moves with every pick. A skipped decision counts as done. */
+/** Picks made out of picks needed, so progress moves with every pick. A discarded decision counts as done. */
 export function steps(deck: Deck, state: State): { done: number; total: number } {
   let done = 0
   let total = 0
@@ -113,7 +112,7 @@ export function steps(deck: Deck, state: State): { done: number; total: number }
   return { done, total }
 }
 
-/** Decisions picked or skipped. */
+/** Decisions picked or discarded. */
 export function handled(deck: Deck, state: State): number {
   return deck.decisions.filter((decision) => {
     const run = state.runs[decision.id]

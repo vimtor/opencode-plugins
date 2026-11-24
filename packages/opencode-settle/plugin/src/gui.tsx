@@ -240,9 +240,12 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
   }
   const snooze = () => {
     const c = current()
-    if (!c) return
-    const next = run.snooze(c.state)
-    if (next !== c.state) commit(next)
+    if (!c || c.state.queue.length < 2) return
+    commit(run.snooze(c.state))
+  }
+  const discard = () => {
+    const c = current()
+    if (c && now()) commit(run.discard(c.state))
   }
   const undo = () => {
     const previous = history().at(-1)
@@ -335,7 +338,7 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
       return
     }
     if (event.repeat) return
-    const actions: Record<string, () => void> = decided ? { u: reopen } : { s: snooze, u: undo, c: copy }
+    const actions: Record<string, () => void> = decided ? { u: reopen } : { s: snooze, d: discard, u: undo, c: copy }
     const action = actions[event.key.toLowerCase()]
     if (!action) return
     event.preventDefault()
@@ -366,7 +369,6 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
                 const total = () => c().deck.decisions.length
                 const position = () => run.handled(c().deck, c().state) + 1
                 const steps = () => run.steps(c().deck, c().state)
-                const skipping = () => run.skips(c().state)
                 return (
                   <section class="settle-decide">
                     <div class="settle-bar" aria-hidden="true">
@@ -417,13 +419,11 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
                         <Key label="Bottom" shortcut="J" />
                       </ui.Button>
                       <span class="settle-spacer" />
-                      <ui.Button
-                        variant="ghost-muted"
-                        size="small"
-                        onClick={snooze}
-                        disabled={!skipping() && c().state.queue.length < 2}
-                      >
-                        <Key label={skipping() ? "Skip" : "Snooze"} shortcut="S" />
+                      <ui.Button variant="ghost-muted" size="small" onClick={snooze} disabled={c().state.queue.length < 2}>
+                        <Key label="Snooze" shortcut="S" />
+                      </ui.Button>
+                      <ui.Button variant="ghost-muted" size="small" onClick={discard}>
+                        <Key label="Discard" shortcut="D" />
                       </ui.Button>
                       <ui.Button variant="ghost-muted" size="small" onClick={undo} disabled={history().length === 0}>
                         <Key label="Undo" shortcut="U" />
