@@ -160,7 +160,10 @@ function Card(props: { option: Option; kept: boolean; pressed: boolean; fresh: b
       data-fresh={props.fresh || undefined}
       onClick={props.onChoose}
     >
-      <h3 class="settle-card-title">{props.option.title}</h3>
+      <div class="settle-card-head">
+        <h3 class="settle-card-title">{props.option.title}</h3>
+        <Show when={props.option.tag}>{(tag) => <span class="settle-tag">{tag()}</span>}</Show>
+      </div>
       <Show when={text().length > 0}>
         <div class="settle-card-text">
           <For each={text()}>{(block) => <BlockView block={block} />}</For>

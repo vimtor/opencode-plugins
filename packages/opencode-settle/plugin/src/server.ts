@@ -57,6 +57,11 @@ const INPUT = {
               properties: {
                 id,
                 title: { type: "string", description: "A short name the user can read at a glance." },
+                tag: {
+                  type: "string",
+                  description:
+                    "Optional one-word label shown next to the title, such as Recommended or Current. Use it rarely: for a strong recommendation, or to mark what exists today.",
+                },
                 blocks: { type: "array", items: block },
               },
               required: ["id", "title", "blocks"],
@@ -83,7 +88,7 @@ Writing a good deck:
 - Group decisions by axis, such as how it looks, how it behaves, how it's built, how it ships.
 - 2–4 options per decision. Each option stands on its own: a short title, then the blocks that show it.
 - Show, don't describe: an html mockup for anything visual, a code block for an API or config shape.
-- Present the options evenly. Don't recommend one; the point is the user's own pick.`
+- Present the options evenly. Tag an option only when it matters: Recommended for a strong recommendation, Current for what exists today. Most options have no tag.`
 
 export default Plugin.define({
   id: "settle",
