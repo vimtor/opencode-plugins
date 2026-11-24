@@ -72,6 +72,42 @@ describe("run", () => {
   })
 })
 
+describe("tags", () => {
+  const tagged = parseDeck({
+    id: "t",
+    title: "T",
+    axes: [{ id: "a", title: "A" }],
+    decisions: [
+      {
+        id: "d",
+        axis: "a",
+        question: "?",
+        options: [
+          { id: "o", title: "O", tag: "Recommended" },
+          { id: "p", title: "P" },
+        ],
+      },
+    ],
+  })
+
+  test("an option keeps its tag, and the answer carries it", () => {
+    expect(tagged.decisions[0]!.options[0]!.tag).toBe("Recommended")
+    const state = run.pick(tagged, run.start(tagged), "left")
+    expect(run.result(tagged, state).outcomes[0]!.chosen).toEqual({ id: "o", title: "O", tag: "Recommended" })
+  })
+
+  test("a tag is one short word", () => {
+    const deck = (tag: string) => ({
+      id: "t",
+      title: "T",
+      axes: [{ id: "a", title: "A" }],
+      decisions: [{ id: "d", axis: "a", question: "?", options: [{ id: "o", title: "O", tag }, { id: "p", title: "P" }] }],
+    })
+    expect(() => parseDeck(deck("Current behavior"))).toThrow("one word")
+    expect(() => parseDeck(deck("Recommendedbutlonger"))).toThrow("one word")
+  })
+})
+
 describe("parseDeck", () => {
   test("rejects a decision with one option", () => {
     expect(() =>

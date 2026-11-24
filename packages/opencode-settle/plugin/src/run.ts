@@ -146,7 +146,7 @@ export function result(deck: Deck, state: State, decidedAt = new Date()): Result
         decision: decision.id,
         axis: decision.axis,
         question: decision.question,
-        chosen: { id: chosen.id, title: chosen.title },
+        chosen: { id: chosen.id, title: chosen.title, ...(chosen.tag ? { tag: chosen.tag } : {}) },
         rejected: decision.options
           .filter((option) => option.id !== chosen.id)
           .map((option) => ({ id: option.id, title: option.title })),

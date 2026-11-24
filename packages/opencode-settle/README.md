@@ -60,4 +60,6 @@ The agent writes a deck as the tool's input:
 }
 ```
 
+An option can carry a one-word `tag`, such as `Recommended` or `Current`, shown next to its title. Use it rarely.
+
 Blocks are `text` (Markdown), `code` (with a `language`), `image` (an https or data: URL with `alt`) and `html`. HTML mockups run in a sandboxed frame with no scripts, on the app's page colour, and grow to fit their content.

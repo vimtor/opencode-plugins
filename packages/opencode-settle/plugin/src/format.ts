@@ -9,7 +9,8 @@ export function answerText(deck: Deck, deckID: string, result: Result): string {
     lines.push("", `**${axis.title}**`)
     for (const outcome of outcomes) {
       const rejected = outcome.rejected.map((option) => option.title).join("; ")
-      lines.push(`- ${outcome.question} **${outcome.chosen.title}** (\`${outcome.decision}: ${outcome.chosen.id}\`), over ${rejected}.`)
+      const tag = outcome.chosen.tag ? ` [${outcome.chosen.tag}]` : ""
+      lines.push(`- ${outcome.question} **${outcome.chosen.title}**${tag} (\`${outcome.decision}: ${outcome.chosen.id}\`), over ${rejected}.`)
       if (outcome.note) lines.push(`  Note: ${outcome.note}`)
     }
   }

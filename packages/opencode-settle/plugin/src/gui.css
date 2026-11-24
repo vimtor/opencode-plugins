@@ -216,6 +216,25 @@
   }
 }
 
+.settle-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settle-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 4px;
+  /* Tinted from the text colour, so it stands out on the card's fill in light and dark themes alike. */
+  background: color-mix(in srgb, var(--v2-text-text-base) 7%, transparent);
+  color: var(--v2-text-text-muted);
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: var(--font-weight-medium, 500);
+}
+
 .settle-card-title {
   margin: 0;
   font-size: 13px;

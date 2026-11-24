@@ -4,7 +4,7 @@ export type Block =
   | { type: "image"; src: string; alt: string; width?: number; height?: number }
   | { type: "html"; html: string; height?: number }
 
-export type Option = { id: string; title: string; blocks: Block[] }
+export type Option = { id: string; title: string; tag?: string; blocks: Block[] }
 
 export type Decision = {
   id: string
@@ -30,7 +30,7 @@ export type Outcome = {
   decision: string
   axis: string
   question: string
-  chosen: { id: string; title: string }
+  chosen: { id: string; title: string; tag?: string }
   rejected: { id: string; title: string }[]
   picks: Pick[]
   skips: number
@@ -123,11 +123,19 @@ function parseBlock(value: unknown, path: string): Block {
   }
 }
 
+function tag(value: unknown, path: string): string | undefined {
+  const text = optionalString(value, path)?.trim()
+  if (text === undefined) return undefined
+  if (/\s/.test(text) || text.length > 16) fail(path, "must be one word of at most 16 characters")
+  return text
+}
+
 function parseOption(value: unknown, path: string): Option {
   const option = record(value, path)
   return {
     id: id(option.id, `${path}.id`),
     title: string(option.title, `${path}.title`),
+    tag: tag(option.tag, `${path}.tag`),
     blocks: list(option.blocks ?? [], `${path}.blocks`, 0).map((block, index) =>
       parseBlock(block, `${path}.blocks[${index}]`),
     ),
