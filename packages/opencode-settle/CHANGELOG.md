@@ -1,5 +1,11 @@
 # opencode-settle
 
+## 0.2.0
+
+### Minor Changes
+
+- cf4c7c3: Add one-word tags to options, such as Recommended or Current, shown next to the option's title and included in the answers.
+
 ## 0.1.3
 
 ### Patch Changes
