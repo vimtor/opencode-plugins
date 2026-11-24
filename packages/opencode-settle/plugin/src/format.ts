@@ -15,7 +15,7 @@ export function answerText(deck: Deck, deckID: string, result: Result): string {
   }
   const missing = deck.decisions.filter((decision) => !result.outcomes.some((outcome) => outcome.decision === decision.id))
   if (missing.length > 0) {
-    lines.push("", `Not decided yet: ${missing.map((decision) => decision.question).join("; ")}`)
+    lines.push("", `Skipped: ${missing.map((decision) => decision.question).join("; ")}`)
   }
   return lines.join("\n")
 }

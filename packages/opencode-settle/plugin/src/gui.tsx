@@ -238,10 +238,14 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
       commit(next)
     }, 220)
   }
-  const skip = () => {
+  const snooze = () => {
     const c = current()
     if (!c || c.state.queue.length < 2) return
-    commit(run.skip(c.state))
+    commit(run.snooze(c.state))
+  }
+  const discard = () => {
+    const c = current()
+    if (c && now()) commit(run.discard(c.state))
   }
   const undo = () => {
     const previous = history().at(-1)
@@ -334,7 +338,7 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
       return
     }
     if (event.repeat) return
-    const actions: Record<string, () => void> = decided ? { u: reopen } : { s: skip, u: undo, c: copy }
+    const actions: Record<string, () => void> = decided ? { u: reopen } : { s: snooze, d: discard, u: undo, c: copy }
     const action = actions[event.key.toLowerCase()]
     if (!action) return
     event.preventDefault()
@@ -363,12 +367,12 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
             <Show when={now()} fallback={<Done count={run.result(c().deck, c().state).outcomes.length} />}>
               {(n) => {
                 const total = () => c().deck.decisions.length
-                const position = () =>
-                  c().deck.decisions.filter((decision) => c().state.runs[decision.id]?.chosen !== undefined).length + 1
+                const position = () => run.handled(c().deck, c().state) + 1
+                const steps = () => run.steps(c().deck, c().state)
                 return (
                   <section class="settle-decide">
                     <div class="settle-bar" aria-hidden="true">
-                      <span style={{ width: `${((position() - 1) / total()) * 100}%` }} />
+                      <span style={{ width: `${steps().total === 0 ? 0 : (steps().done / steps().total) * 100}%` }} />
                     </div>
                     <header class="settle-ask">
                       <div class="settle-question-row">
@@ -415,8 +419,11 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
                         <Key label="Bottom" shortcut="J" />
                       </ui.Button>
                       <span class="settle-spacer" />
-                      <ui.Button variant="ghost-muted" size="small" onClick={skip} disabled={c().state.queue.length < 2}>
+                      <ui.Button variant="ghost-muted" size="small" onClick={snooze} disabled={c().state.queue.length < 2}>
                         <Key label="Snooze" shortcut="S" />
+                      </ui.Button>
+                      <ui.Button variant="ghost-muted" size="small" onClick={discard}>
+                        <Key label="Discard" shortcut="D" />
                       </ui.Button>
                       <ui.Button variant="ghost-muted" size="small" onClick={undo} disabled={history().length === 0}>
                         <Key label="Undo" shortcut="U" />

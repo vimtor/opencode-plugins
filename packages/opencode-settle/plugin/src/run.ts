@@ -9,6 +9,8 @@ export type Run = {
   picks: Pick[]
   skips: number
   chosen?: number
+  /** Discarded: passed over without an answer. */
+  skipped?: boolean
 }
 
 export type State = {
@@ -70,11 +72,19 @@ export function pick(deck: Deck, state: State, side: Side): State {
   }
 }
 
-export function skip(state: State): State {
+/** Moves the current decision to the end of the queue. */
+export function snooze(state: State): State {
   const [id, ...rest] = state.queue
   if (!id || rest.length === 0) return state
   const run = state.runs[id]!
   return { ...state, queue: [...rest, id], runs: { ...state.runs, [id]: { ...run, skips: run.skips + 1 } } }
+}
+
+/** Drops the current decision without an answer. */
+export function discard(state: State): State {
+  const [id, ...rest] = state.queue
+  if (!id) return state
+  return { ...state, queue: rest, runs: { ...state.runs, [id]: { ...state.runs[id]!, skipped: true } } }
 }
 
 export function reopen(state: State, id: string): State {
@@ -87,6 +97,27 @@ export function reopen(state: State, id: string): State {
 
 export function note(state: State, id: string, text: string): State {
   return { ...state, notes: { ...state.notes, [id]: text } }
+}
+
+/** Picks made out of picks needed, so progress moves with every pick. A discarded decision counts as done. */
+export function steps(deck: Deck, state: State): { done: number; total: number } {
+  let done = 0
+  let total = 0
+  for (const decision of deck.decisions) {
+    const needed = decision.options.length - 1
+    const run = state.runs[decision.id]
+    total += needed
+    done += run?.skipped || run?.chosen !== undefined ? needed : Math.min(run?.picks.length ?? 0, needed)
+  }
+  return { done, total }
+}
+
+/** Decisions picked or discarded. */
+export function handled(deck: Deck, state: State): number {
+  return deck.decisions.filter((decision) => {
+    const run = state.runs[decision.id]
+    return run?.skipped || run?.chosen !== undefined
+  }).length
 }
 
 export function picksLeft(decision: Decision, run: Run): number {

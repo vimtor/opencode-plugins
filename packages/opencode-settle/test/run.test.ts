@@ -23,9 +23,42 @@ describe("run", () => {
   })
 
   test("snoozing moves the decision to the end and counts it", () => {
-    const state = run.skip(run.start(deck))
+    const state = run.snooze(run.start(deck))
     expect(state.queue).toEqual(["two", "three"])
     expect(state.runs.three!.skips).toBe(1)
+  })
+
+  test("the last decision can't be snoozed", () => {
+    const last = { ...run.start(deck), queue: ["two"] }
+    expect(run.snooze(last)).toBe(last)
+  })
+
+  test("discarding drops a decision without an answer, even the last one", () => {
+    let state = run.discard(run.start(deck))
+    expect(state.queue).toEqual(["two"])
+    expect(state.runs.three!.skipped).toBe(true)
+    expect(run.handled(deck, state)).toBe(1)
+    state = run.discard(state)
+    expect(state.queue).toEqual([])
+    expect(run.result(deck, state).outcomes).toEqual([])
+  })
+
+  test("progress moves with every pick", () => {
+    let state = run.start(deck)
+    expect(run.steps(deck, state)).toEqual({ done: 0, total: 3 })
+    state = run.pick(deck, state, "left")
+    expect(run.steps(deck, state)).toEqual({ done: 1, total: 3 })
+    state = run.pick(deck, state, "left")
+    expect(run.steps(deck, state)).toEqual({ done: 2, total: 3 })
+  })
+
+  test("a discarded decision counts as done", () => {
+    let state = run.snooze(run.start(deck))
+    state = run.pick(deck, state, "left")
+    expect(run.steps(deck, state)).toEqual({ done: 1, total: 3 })
+    state = run.discard(state)
+    expect(state.queue).toEqual([])
+    expect(run.steps(deck, state)).toEqual({ done: 3, total: 3 })
   })
 
   test("the result lists the chosen and passed-over options", () => {

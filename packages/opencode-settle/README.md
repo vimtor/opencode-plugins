@@ -30,6 +30,7 @@ In the panel:
 | K | Keep the top option |
 | J | Keep the bottom option |
 | S | Snooze the decision until the end |
+| D | Discard the decision without answering it |
 | U | Undo the last pick |
 | C | Copy the decision as Markdown |
 
