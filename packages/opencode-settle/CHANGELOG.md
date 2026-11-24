@@ -1,5 +1,11 @@
 # opencode-settle
 
+## 0.1.3
+
+### Patch Changes
+
+- 9c42b76: Scale tall mockups and images down so both options of a pair fit on screen together.
+
 ## 0.1.2
 
 ### Patch Changes
