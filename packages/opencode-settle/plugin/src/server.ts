@@ -8,7 +8,7 @@ const id = { type: "string", pattern: "^[a-z0-9][a-z0-9-]*$", description: "Lowe
 const block = {
   type: "object",
   description:
-    "One piece of an option. text: Markdown. code: a snippet with its language. html: a mockup rendered in a sandboxed iframe with no scripts, on the panel's own background and text colour (light or dark, following the app); set your own background if the mockup needs one. It grows to fit its content; height is only the size it starts at. image: an https or data: URL.",
+    "One piece of an option. text: Markdown. code: a snippet with its language. html: a mockup rendered in a sandboxed iframe with no scripts, on the panel's own background and text colour (light or dark, following the app); set your own background if the mockup needs one. It grows to fit its content; height is only the size it starts at. image: an https or data: URL, shown at its own size or the width and height you give, never wider than the card.",
   properties: {
     type: { type: "string", enum: ["text", "code", "html", "image"] },
     text: { type: "string" },

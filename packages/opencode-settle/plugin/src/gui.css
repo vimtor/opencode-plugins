@@ -253,13 +253,20 @@
   overflow-x: auto;
 }
 
-.settle-html,
-.settle-image {
+.settle-html {
   display: block;
   width: 100%;
   max-width: 100%;
-  height: auto;
   border: 1px solid var(--v2-border-border-muted);
+  border-radius: 6px;
+}
+
+/* An image keeps the size the deck gives it, or its own, and only shrinks to fit the card. */
+.settle-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
   border-radius: 6px;
 }
 
