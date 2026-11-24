@@ -1,4 +1,18 @@
-import { createEffect, createMemo, createResource, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from "solid-js"
+import {
+  createContext,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  For,
+  Match,
+  on,
+  onCleanup,
+  Show,
+  Switch,
+  useContext,
+  type JSX,
+} from "solid-js"
 import {
   Command,
   createKeyed,
@@ -65,15 +79,20 @@ function markdown(deck: Deck, decision: Decision): string {
     .join("\n\n")
 }
 
-// A mockup grows to fit what it draws, so it never scrolls inside its card. The frame runs no scripts; same-origin
-// only lets this panel read its height.
+// The tallest a mockup or image may be, so both cards of a pair fit on screen together.
+const MediaLimit = createContext<() => number>(() => 900)
+
+// A mockup grows to fit what it draws, so it never scrolls inside its card. Taller than the limit, it's scaled down
+// whole rather than cut. The frame runs no scripts; same-origin only lets this panel read its height.
 function Mockup(props: { html: string; height?: number }) {
-  const [height, setHeight] = createSignal(props.height ?? 160)
+  const limit = useContext(MediaLimit)
+  const [natural, setNatural] = createSignal(props.height ?? 160)
+  const scale = () => Math.min(1, limit() / natural())
   let observer: ResizeObserver | undefined
   const measure = (frame: HTMLIFrameElement) => {
     const doc = frame.contentDocument
     if (!doc?.documentElement) return
-    const fit = () => setHeight(Math.min(Math.max(doc.documentElement.scrollHeight, 24), 900))
+    const fit = () => setNatural(Math.min(Math.max(doc.documentElement.scrollHeight, 24), 2000))
     fit()
     observer?.disconnect()
     observer = new ResizeObserver(fit)
@@ -81,19 +100,25 @@ function Mockup(props: { html: string; height?: number }) {
   }
   onCleanup(() => observer?.disconnect())
   return (
-    <iframe
-      class="settle-html"
-      sandbox="allow-same-origin"
-      title="Preview"
-      srcdoc={frame(props.html)}
-      style={{ height: `${height()}px` }}
-      onLoad={(event) => measure(event.currentTarget)}
-    />
+    <div class="settle-html" style={{ height: `${Math.round(natural() * scale())}px` }}>
+      <iframe
+        sandbox="allow-same-origin"
+        title="Preview"
+        srcdoc={frame(props.html)}
+        style={{
+          width: `${100 / scale()}%`,
+          height: `${natural()}px`,
+          transform: scale() < 1 ? `scale(${scale()})` : undefined,
+        }}
+        onLoad={(event) => measure(event.currentTarget)}
+      />
+    </div>
   )
 }
 
 function BlockView(props: { block: Block }) {
   const ctx = usePlugin<typeof definition>()
+  const limit = useContext(MediaLimit)
   const ui = ctx.ui
   return (
     <Switch>
@@ -105,7 +130,14 @@ function BlockView(props: { block: Block }) {
       </Match>
       <Match when={props.block.type === "image" && props.block}>
         {(block) => (
-          <img class="settle-image" src={block().src} alt={block().alt} width={block().width} height={block().height} />
+          <img
+            class="settle-image"
+            src={block().src}
+            alt={block().alt}
+            width={block().width}
+            height={block().height}
+            style={{ "max-height": `${limit()}px` }}
+          />
         )}
       </Match>
       <Match when={props.block.type === "html" && props.block}>
@@ -193,6 +225,15 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
   const [pressed, setPressed] = createSignal<Side>()
   // The decision that just finished, held on screen for a moment so its pick shows before the next one comes in.
   const [leaving, setLeaving] = createSignal(false)
+
+  // Each card gets a share of the panel's height for its mockup or image, so the pair fits without scrolling:
+  // the panel less the progress bar, question and footer, halved, less each card's title, text and padding.
+  let panel!: HTMLDivElement
+  const [panelHeight, setPanelHeight] = createSignal(900)
+  const limit = () => Math.max(120, Math.floor((panelHeight() - 170) / 2 - 110))
+  const sizer = new ResizeObserver(() => panel && setPanelHeight(panel.clientHeight))
+  queueMicrotask(() => panel && sizer.observe(panel))
+  onCleanup(() => sizer.disconnect())
 
   const deck = () => entry()?.deck
   const current = createMemo(() => {
@@ -357,7 +398,8 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
   const onBlur = () => setPressed(undefined)
 
   return (
-    <div class="settle" tabindex="0" onKeyDown={onKeyDown} onKeyUp={onKeyUp} onFocusOut={onBlur}>
+    <div class="settle" ref={panel} tabindex="0" onKeyDown={onKeyDown} onKeyUp={onKeyUp} onFocusOut={onBlur}>
+      <MediaLimit.Provider value={limit}>
       <Show when={entry.error}>
         <p class="settle-error">Couldn't load this deck. {String(entry.error?.message ?? entry.error)}</p>
       </Show>
@@ -439,6 +481,7 @@ function DeckView(props: { deckID: string; session: MountedSession; screen: Sess
           </>
         )}
       </Show>
+      </MediaLimit.Provider>
     </div>
   )
 
