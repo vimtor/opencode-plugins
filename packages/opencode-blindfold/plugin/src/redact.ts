@@ -68,47 +68,55 @@ function lineBreakLength(input: string, index: number) {
   return 2
 }
 
-// End of a continuation line that looks like wrapped base64 rather than "key=value" text.
+// One base64 character, including its JSON-escaped or percent-encoded form.
+function base64Unit(input: string, index: number) {
+  const code = input.charCodeAt(index)
+  if (isBase64Code(code)) return { code, length: 1 }
+  if (code === 0x25 && isHexCode(input.charCodeAt(index + 1)) && isHexCode(input.charCodeAt(index + 2))) {
+    const decoded = Number.parseInt(input.slice(index + 1, index + 3), 16)
+    return isBase64Code(decoded) ? { code: decoded, length: 3 } : undefined
+  }
+  if (code === 0x5c && input.charCodeAt(index + 1) === 0x2f) {
+    return { code: 0x2f, length: 2 }
+  }
+  if (
+    code === 0x5c &&
+    input.charCodeAt(index + 1) === 0x75 &&
+    isHexCode(input.charCodeAt(index + 2)) &&
+    isHexCode(input.charCodeAt(index + 3)) &&
+    isHexCode(input.charCodeAt(index + 4)) &&
+    isHexCode(input.charCodeAt(index + 5))
+  ) {
+    const decoded = Number.parseInt(input.slice(index + 2, index + 6), 16)
+    return isBase64Code(decoded) ? { code: decoded, length: 6 } : undefined
+  }
+  return undefined
+}
+
+// A wrapped line must be made only of base64 and end at a line break, the end of
+// the string, or a closing JSON quote. Anything else is ordinary text after the URL.
 function continuationEnd(input: string, start: number) {
   let index = start
+  let count = 0
   let padding = 0
   while (index < input.length) {
-    if (lineBreakLength(input, index) > 0) break
-    const code = input.charCodeAt(index)
-    if (isBase64Code(code)) {
-      if (code === 0x3d) {
-        if (padding === 2) return -1
-        padding++
-      } else if (padding > 0) {
-        // "=" is only padding at the end of a base64 line. An internal "=" means
-        // this is ordinary text such as "token=value", not a payload continuation.
-        return -1
-      }
-      index++
-      continue
+    if (lineBreakLength(input, index) > 0 || input.charCodeAt(index) === 0x22) break
+    const unit = base64Unit(input, index)
+    if (!unit) return -1
+    if (unit.code === 0x3d) {
+      if (padding === 2) return -1
+      padding++
+    } else if (padding > 0) {
+      // "=" is only padding at the end of a base64 line. An internal "=" means
+      // this is ordinary text such as "token=value", not a payload continuation.
+      return -1
     }
-    if (code === 0x25 && isHexCode(input.charCodeAt(index + 1)) && isHexCode(input.charCodeAt(index + 2))) {
-      index += 3
-      continue
-    }
-    if (code === 0x5c && input.charCodeAt(index + 1) === 0x2f) {
-      index += 2
-      continue
-    }
-    if (
-      code === 0x5c &&
-      input.charCodeAt(index + 1) === 0x75 &&
-      isHexCode(input.charCodeAt(index + 2)) &&
-      isHexCode(input.charCodeAt(index + 3)) &&
-      isHexCode(input.charCodeAt(index + 4)) &&
-      isHexCode(input.charCodeAt(index + 5))
-    ) {
-      index += 6
-      continue
-    }
-    break
+    count++
+    index += unit.length
   }
-  return index === start ? -1 : index
+  // Short words after a URL are not wrapped payload. Real MIME wrapping uses
+  // 64- or 76-character lines.
+  return count >= 16 ? index : -1
 }
 
 // End of a base64 data URL, or -1 when the text at start is not one.

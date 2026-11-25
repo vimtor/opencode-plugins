@@ -84,18 +84,49 @@ test("keeps a __proto__ key as data", () => {
 
 test("leaves wrapped base64 data URLs untouched", () => {
   const redactor = new Redactor()
+  redactor.set("CHUNK", "AAAA")
   redactor.set("TOKEN", "BBBB")
+  const line = "A".repeat(76)
+  const padded = `${"A".repeat(74)}==`
   const urls = [
-    "data:image/png;base64,AAAA\nBBBB",
-    "data:image/png;base64,AAAA\r\nBBBB",
-    "data:image/png;base64,AAAA\nBB==\nCCCC",
-    "data:image/png;base64,AAAA\\nBBBB",
-    "data:image/png;base64,AAAA\\r\\nBBBB",
+    `data:image/png;base64,QUJD\n${line}`,
+    `data:image/png;base64,QUJD\r\n${line}`,
+    `data:image/png;base64,QUJD\n${line}\n${padded}`,
+    `data:image/png;base64,QUJD\\n${line}`,
+    `data:image/png;base64,QUJD\\r\\n${line}`,
+    `data:image/png;base64,QUJD\n${"A".repeat(64)}`,
   ]
   for (const url of urls) expect(redactor.text(url)).toBe(url)
 
-  expect(redactor.text("data:image/png;base64,AAAA\nBBBB\ntoken=BBBB")).toBe(
-    "data:image/png;base64,AAAA\nBBBB\ntoken=[REDACTED:TOKEN]",
+  expect(redactor.text(`data:image/png;base64,QUJD\n${line}\ntoken=BBBB`)).toBe(
+    `data:image/png;base64,QUJD\n${line}\ntoken=${replacement("TOKEN")}`,
+  )
+})
+
+test("does not treat ordinary text after a data URL as wrapped base64", () => {
+  const secret = new Redactor()
+  secret.set("TOKEN", "secret")
+  expect(secret.text("data:image/png;base64,QUJD\nsecret: value")).toBe(
+    `data:image/png;base64,QUJD\n${replacement("TOKEN")}: value`,
+  )
+
+  const token = new Redactor()
+  token.set("TOKEN", "token")
+  expect(token.text("data:image/png;base64,QUJD\ntoken value")).toBe(
+    `data:image/png;base64,QUJD\n${replacement("TOKEN")} value`,
+  )
+
+  const short = new Redactor()
+  short.set("TOKEN", "BBBB")
+  expect(short.text("data:image/png;base64,QUJD\nBBBB, next")).toBe(
+    `data:image/png;base64,QUJD\n${replacement("TOKEN")}, next`,
+  )
+
+  const long = new Redactor()
+  long.set("TOKEN", "AAAA")
+  const twenty = "A".repeat(20)
+  expect(long.text(`data:image/png;base64,QUJD\n${twenty}: value`)).toBe(
+    `data:image/png;base64,QUJD\n${"[REDACTED:TOKEN]".repeat(5)}: value`,
   )
 })
 

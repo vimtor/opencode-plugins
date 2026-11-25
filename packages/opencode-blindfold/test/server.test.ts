@@ -373,9 +373,10 @@ test("redacts escaped JSON string values", async () => {
 test("keeps wrapped media data URLs in provider requests", async () => {
   const { hooks, store } = await harness()
   await store()
-  await store("BBBB", "CHUNK")
-  const lf = "data:image/png;base64,AAAA\nBBBB"
-  const crlf = "data:application/pdf;base64,AAAA\r\nBBBB"
+  await store("AAAA", "CHUNK")
+  const line = "A".repeat(76)
+  const lf = `data:image/png;base64,QUJD\n${line}`
+  const crlf = `data:application/pdf;base64,QUJD\r\n${line}`
   const body = JSON.stringify({
     messages: [
       { type: "file", mime: "image/png", uri: lf },
