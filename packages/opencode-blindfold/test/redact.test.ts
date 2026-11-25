@@ -80,6 +80,15 @@ test("leaves bare base64 media fields untouched", () => {
   expect(bareData.data).toBe(data)
   expect(bareData.label).toBe(replacement("CHUNK"))
 
+  const short = "R0lGODlhAQABAAAAACw="
+  const shortAnthropic = redactor.value({ type: "base64", media_type: "image/gif", data: short, label: "AAAA" })
+  expect(shortAnthropic.data).toBe(short)
+  expect(shortAnthropic.label).toBe(replacement("CHUNK"))
+  const shortGemini = redactor.value({ inlineData: { mimeType: "image/gif", data: short }, label: "AAAA" })
+  expect(shortGemini.inlineData.data).toBe(short)
+  const shortBedrock = redactor.value({ source: { bytes: short }, label: "AAAA" })
+  expect(shortBedrock.source.bytes).toBe(short)
+
   const both = redactor.value({ data, bytes: data })
   expect(both.data).toBe(data)
   expect(both.bytes).toBe(data)
@@ -94,7 +103,7 @@ test("leaves bare base64 media fields untouched", () => {
 test("redacts plain text in data and bytes fields that are not base64", () => {
   const redactor = new Redactor()
   redactor.set("DATA", "secret-value")
-  const input = { type: "base64", data: "secret-value", bytes: "secret-value" }
+  const input = { data: "secret-value", bytes: "secret-value" }
   const output = redactor.value(input)
   expect(output.data).toBe(replacement("DATA"))
   expect(output.bytes).toBe(replacement("DATA"))

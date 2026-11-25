@@ -438,6 +438,46 @@ test("keeps provider inline base64 fields untouched while redacting nearby text"
   expect(content[1]!.image!.source.bytes).toBe(data)
 })
 
+test("keeps short provider inline base64 fields untouched", async () => {
+  const { hooks, store } = await harness()
+  await store("A", "A_TOKEN")
+  const data = "R0lGODlhAQABAAAAACw="
+  const body = JSON.stringify({
+    anthropic: { type: "image", source: { type: "base64", media_type: "image/gif", data }, tag: "A" },
+    gemini: { inlineData: { mimeType: "image/gif", data }, tag: "A" },
+    bedrock: { source: { bytes: data }, tag: "A" },
+  })
+  const http = {
+    request: new Request("https://example.com", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    }),
+  }
+  await hooks.get("session.http.request")!(http)
+  const parsed = JSON.parse(await http.request.text())
+  expect(parsed.anthropic.source.data).toBe(data)
+  expect(parsed.anthropic.tag).toBe("[REDACTED:A_TOKEN]")
+  expect(parsed.gemini.inlineData.data).toBe(data)
+  expect(parsed.gemini.tag).toBe("[REDACTED:A_TOKEN]")
+  expect(parsed.bedrock.source.bytes).toBe(data)
+  expect(parsed.bedrock.tag).toBe("[REDACTED:A_TOKEN]")
+
+  const context = {
+    system: [],
+    messages: [
+      {
+        role: "user",
+        content: [{ type: "text", text: "A" }, { image: { source: { bytes: data } } }],
+      },
+    ],
+  }
+  await hooks.get("session.context")!(context)
+  const content = context.messages[0]!.content as Array<{ text?: string; image?: { source: { bytes: string } } }>
+  expect(content[0]!.text).toBe("[REDACTED:A_TOKEN]")
+  expect(content[1]!.image!.source.bytes).toBe(data)
+})
+
 test("redacts plain text in data and bytes fields that are not base64", async () => {
   const { hooks, store } = await harness()
   await store("secret-value", "DATA")

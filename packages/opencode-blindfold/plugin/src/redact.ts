@@ -193,17 +193,39 @@ function isBinaryValue(value: string) {
   return isBase64DataUrl(value) || isBareBase64(value)
 }
 
+// Short standard base64, e.g. a 20-character 1x1 GIF data payload.
+function isShortBase64(value: string) {
+  return value.length >= 8 && value.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(value)
+}
+
+function isBase64Candidate(value: string) {
+  return isBinaryValue(value) || isShortBase64(value)
+}
+
 const BINARY_KEYS = new Set(["data", "bytes", "uri"])
+
+function hasBinaryContext(input: Record<string, unknown>) {
+  if (input.type === "base64" || input.type === "bytes") return true
+  const mediaType = input.media_type ?? input.mediaType ?? input.mimeType ?? input.mime ?? input.format
+  return typeof mediaType === "string" && isMediaType(mediaType)
+}
 
 // OpenCode stores inline media as data URLs, but assets and providers use bare
 // base64 fields too. Changing any of these makes the payload undecodable.
 function binaryFields(input: Record<string, unknown>) {
   const fields = new Set<string>()
-  const mediaType = input.mediaType ?? input.media_type ?? input.mime ?? input.mimeType
-  const media = typeof mediaType === "string" && isMediaType(mediaType)
-  if (typeof input.data === "string" && isBinaryValue(input.data)) fields.add("data")
-  if (typeof input.bytes === "string" && isBinaryValue(input.bytes)) fields.add("bytes")
-  if (typeof input.uri === "string" && media && isBinaryValue(input.uri)) fields.add("uri")
+  const typed = input.type === "base64" || input.type === "bytes"
+  const media = hasBinaryContext(input)
+  if (typeof input.data === "string") {
+    if (typed || isBinaryValue(input.data) || (media && isShortBase64(input.data))) fields.add("data")
+  }
+  if (typeof input.bytes === "string") {
+    // "bytes" is itself a binary field in Bedrock's inline image shape.
+    if (typed || isBinaryValue(input.bytes) || isShortBase64(input.bytes)) fields.add("bytes")
+  }
+  if (typeof input.uri === "string") {
+    if (isBinaryValue(input.uri) || (media && isShortBase64(input.uri))) fields.add("uri")
+  }
   return fields
 }
 
@@ -373,6 +395,83 @@ function keyBefore(input: string, start: number) {
   return undefined
 }
 
+function objectEnd(input: string, start: number) {
+  let index = start
+  let depth = 0
+  let inString = false
+  while (index < input.length) {
+    const code = input.charCodeAt(index)
+    if (inString) {
+      if (code === 0x5c) {
+        index += 2
+        continue
+      }
+      if (code === 0x22) inString = false
+      index++
+      continue
+    }
+    if (code === 0x22) {
+      inString = true
+      index++
+      continue
+    }
+    if (code === 0x7b) depth++
+    else if (code === 0x7d) {
+      depth--
+      if (depth === 0) return index
+    }
+    index++
+  }
+  return -1
+}
+
+// Nearest object that contains the string literal starting at start.
+function enclosingObject(input: string, start: number) {
+  let index = start - 1
+  let depth = 0
+  let inString = false
+  while (index >= 0) {
+    const code = input.charCodeAt(index)
+    if (inString) {
+      if (code === 0x22) {
+        let slashes = 0
+        let before = index - 1
+        while (before >= 0 && input.charCodeAt(before) === 0x5c) {
+          slashes++
+          before--
+        }
+        if (slashes % 2 === 0) inString = false
+      }
+      index--
+      continue
+    }
+    if (code === 0x22) {
+      inString = true
+      index--
+      continue
+    }
+    if (code === 0x7d) {
+      depth++
+      index--
+      continue
+    }
+    if (code === 0x7b) {
+      if (depth === 0) {
+        const end = objectEnd(input, index)
+        if (end < 0) return undefined
+        try {
+          return JSON.parse(input.slice(index, end + 1)) as Record<string, unknown>
+        } catch {
+          return undefined
+        }
+      }
+      depth--
+    }
+    index--
+  }
+  return undefined
+}
+
 // Replaces only the string literals that changed. Numbers, whitespace, key order,
 // and the escaping of every other literal stay byte-for-byte intact.
 function redactJson(redactor: Redactor, body: string) {
@@ -390,7 +489,15 @@ function redactJson(redactor: Redactor, body: string) {
       continue
     }
     const key = keyBefore(body, match.index)
-    if (key !== undefined && BINARY_KEYS.has(key) && isBinaryValue(value)) continue
+    if (key !== undefined && BINARY_KEYS.has(key)) {
+      if (isBinaryValue(value)) continue
+      // "bytes" is a binary field even without a type or MIME nearby (Bedrock).
+      if (key === "bytes" && isShortBase64(value)) continue
+      if (isShortBase64(value)) {
+        const parent = enclosingObject(body, match.index)
+        if (parent && hasBinaryContext(parent)) continue
+      }
+    }
     const redacted = redactor.text(value)
     if (redacted === value) continue
     output += body.slice(start, match.index) + JSON.stringify(redacted)
