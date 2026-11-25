@@ -180,21 +180,34 @@ function isMediaType(value: string) {
   return /^(?:image|audio|video)\//i.test(value) || /^application\/(?:pdf|octet-stream)\b/i.test(value)
 }
 
+function isBase64DataUrl(value: string) {
+  return /^data:[^,\r\n]{0,1024};base64,/i.test(value)
+}
+
 // Long base64 without a data: prefix, as some assets and providers serialize inline media.
 function isBareBase64(value: string) {
   return value.length >= 64 && /^[A-Za-z0-9+/_=\r\n-]+$/.test(value)
 }
 
-// OpenCode stores inline media as data URLs, but assets and some providers use a
-// bare base64 field. Changing either makes the payload undecodable.
-function binaryField(input: Record<string, unknown>) {
-  // OpenCode's asset source says the field is base64, whatever the media type.
-  if ((input.type === "base64" || input.type === "bytes") && typeof input.data === "string") return "data"
-  const mediaType = input.mediaType ?? input.mime ?? input.mimeType
-  if (typeof mediaType !== "string" || !isMediaType(mediaType)) return undefined
-  if (typeof input.data === "string" && isBareBase64(input.data)) return "data"
-  if (typeof input.uri === "string" && (input.uri.startsWith("data:") || isBareBase64(input.uri))) return "uri"
-  return undefined
+function isBinaryValue(value: string) {
+  return isBase64DataUrl(value) || isBareBase64(value)
+}
+
+const BINARY_KEYS = new Set(["data", "bytes", "uri"])
+
+// OpenCode stores inline media as data URLs, but assets and providers use bare
+// base64 fields too. Changing any of these makes the payload undecodable.
+function binaryFields(input: Record<string, unknown>) {
+  const fields = new Set<string>()
+  const mediaType = input.mediaType ?? input.media_type ?? input.mime ?? input.mimeType
+  const media = typeof mediaType === "string" && isMediaType(mediaType)
+  const asset = input.type === "base64" || input.type === "bytes"
+  const dataBinary = typeof input.data === "string" && isBinaryValue(input.data)
+  const bytesBinary = typeof input.bytes === "string" && isBinaryValue(input.bytes)
+  if (bytesBinary) fields.add("bytes")
+  if (dataBinary && (media || asset || bytesBinary)) fields.add("data")
+  if (typeof input.uri === "string" && media && isBinaryValue(input.uri)) fields.add("uri")
+  return fields
 }
 
 export function replacement(name: string) {
@@ -281,10 +294,10 @@ export class Redactor {
     }
     if (isPlainObject(input)) {
       let changed = false
-      const binary = binaryField(input)
+      const binary = binaryFields(input)
       const output: Record<string, unknown> = Object.create(Object.getPrototypeOf(input))
       for (const [key, item] of Object.entries(input)) {
-        const next = key === binary ? item : this.#walk(item)
+        const next = binary.has(key) ? item : this.#walk(item)
         if (next !== item) changed = true
         // defineProperty keeps a "__proto__" key as data instead of changing the prototype.
         Object.defineProperty(output, key, { value: next, enumerable: true, configurable: true, writable: true })
@@ -322,17 +335,45 @@ function isJsonType(type: string) {
 
 const JSON_STRING = /"(?:[^"\\]|\\.)*"/g
 
+function isJsonSpace(code: number) {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d
+}
+
 function isObjectKey(input: string, end: number) {
   let index = end
-  while (index < input.length) {
-    const code = input.charCodeAt(index)
-    if (code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d) {
-      index++
-      continue
+  while (index < input.length && isJsonSpace(input.charCodeAt(index))) index++
+  return input.charCodeAt(index) === 0x3a
+}
+
+// The decoded key that owns the string literal starting at start, if any.
+function keyBefore(input: string, start: number) {
+  let index = start - 1
+  while (index >= 0 && isJsonSpace(input.charCodeAt(index))) index--
+  if (input.charCodeAt(index) !== 0x3a) return undefined
+  index--
+  while (index >= 0 && isJsonSpace(input.charCodeAt(index))) index--
+  if (input.charCodeAt(index) !== 0x22) return undefined
+  const end = index
+  index--
+  while (index >= 0) {
+    if (input.charCodeAt(index) === 0x22) {
+      let slashes = 0
+      let before = index - 1
+      while (before >= 0 && input.charCodeAt(before) === 0x5c) {
+        slashes++
+        before--
+      }
+      if (slashes % 2 === 0) {
+        try {
+          return JSON.parse(input.slice(index, end + 1))
+        } catch {
+          return undefined
+        }
+      }
     }
-    return code === 0x3a
+    index--
   }
-  return false
+  return undefined
 }
 
 // Replaces only the string literals that changed. Numbers, whitespace, key order,
@@ -351,6 +392,8 @@ function redactJson(redactor: Redactor, body: string) {
     } catch {
       continue
     }
+    const key = keyBefore(body, match.index)
+    if (key !== undefined && BINARY_KEYS.has(key) && isBinaryValue(value)) continue
     const redacted = redactor.text(value)
     if (redacted === value) continue
     output += body.slice(start, match.index) + JSON.stringify(redacted)

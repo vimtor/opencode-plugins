@@ -65,11 +65,35 @@ test("leaves bare base64 media fields untouched", () => {
   const nested = redactor.value({ source: { type: "bytes", mediaType: "application/pdf", data } })
   expect(nested.source.data).toBe(data)
 
+  const anthropic = redactor.value({ type: "base64", media_type: "image/gif", data, label: "AAAA" })
+  expect(anthropic.data).toBe(data)
+  expect(anthropic.label).toBe(replacement("CHUNK"))
+
+  const gemini = redactor.value({ inlineData: { mimeType: "image/png", data }, label: "AAAA" })
+  expect(gemini.inlineData.data).toBe(data)
+
+  const bedrock = redactor.value({ source: { bytes: data }, label: "AAAA" })
+  expect(bedrock.source.bytes).toBe(data)
+  expect(bedrock.label).toBe(replacement("CHUNK"))
+
+  const both = redactor.value({ data, bytes: data })
+  expect(both.data).toBe(data)
+  expect(both.bytes).toBe(data)
+
   const file = redactor.value({ type: "file", mime: "image/jpeg", uri: data })
   expect(file.uri).toBe(data)
 
   const url = redactor.value({ type: "file", mime: "image/png", uri: "https://example.com/?token=AAAA" })
   expect(url.uri).toBe(`https://example.com/?token=${replacement("CHUNK")}`)
+})
+
+test("redacts plain text in data and bytes fields that are not base64", () => {
+  const redactor = new Redactor()
+  redactor.set("DATA", "secret-value")
+  const input = { type: "base64", data: "secret-value", bytes: "secret-value" }
+  const output = redactor.value(input)
+  expect(output.data).toBe(replacement("DATA"))
+  expect(output.bytes).toBe(replacement("DATA"))
 })
 
 test("keeps a __proto__ key as data", () => {
