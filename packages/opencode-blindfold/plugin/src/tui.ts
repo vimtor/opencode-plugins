@@ -38,6 +38,8 @@ export default Plugin.define({
         await answer(request, { location: event.location })
       } catch {
         open.delete(request.requestID)
+        // The dialog failed after it was acknowledged, so release the waiting request.
+        await blindfold.cancel({ requestID: request.requestID }, { location: event.location }).catch(() => undefined)
         ctx.ui.toast.show({ variant: "error", message: `Could not send secret ${request.name}.` })
       }
     })
