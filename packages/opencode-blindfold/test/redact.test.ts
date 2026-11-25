@@ -76,6 +76,10 @@ test("leaves bare base64 media fields untouched", () => {
   expect(bedrock.source.bytes).toBe(data)
   expect(bedrock.label).toBe(replacement("CHUNK"))
 
+  const bareData = redactor.value({ data, label: "AAAA" })
+  expect(bareData.data).toBe(data)
+  expect(bareData.label).toBe(replacement("CHUNK"))
+
   const both = redactor.value({ data, bytes: data })
   expect(both.data).toBe(data)
   expect(both.bytes).toBe(data)

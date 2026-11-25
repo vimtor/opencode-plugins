@@ -201,11 +201,8 @@ function binaryFields(input: Record<string, unknown>) {
   const fields = new Set<string>()
   const mediaType = input.mediaType ?? input.media_type ?? input.mime ?? input.mimeType
   const media = typeof mediaType === "string" && isMediaType(mediaType)
-  const asset = input.type === "base64" || input.type === "bytes"
-  const dataBinary = typeof input.data === "string" && isBinaryValue(input.data)
-  const bytesBinary = typeof input.bytes === "string" && isBinaryValue(input.bytes)
-  if (bytesBinary) fields.add("bytes")
-  if (dataBinary && (media || asset || bytesBinary)) fields.add("data")
+  if (typeof input.data === "string" && isBinaryValue(input.data)) fields.add("data")
+  if (typeof input.bytes === "string" && isBinaryValue(input.bytes)) fields.add("bytes")
   if (typeof input.uri === "string" && media && isBinaryValue(input.uri)) fields.add("uri")
   return fields
 }
