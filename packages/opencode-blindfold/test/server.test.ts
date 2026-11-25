@@ -310,6 +310,93 @@ test("keeps text bodies valid while preserving data URLs", async () => {
   expect(http.request.headers.get("content-length")).toBeNull()
 })
 
+test("preserves numbers, whitespace, and key order while redacting JSON strings", async () => {
+  const { hooks, store } = await harness()
+  await store()
+  const body = [
+    "{",
+    '  "id": 9007199254740993,',
+    '  "count": 1e20,',
+    '  "escaped": "a\\/b\\u0041",',
+    `  "text": "${SECRET}",`,
+    `  "nested": { "id": 9007199254740995, "value": "${SECRET}" }`,
+    "}",
+  ].join("\n")
+  const expected = body.replaceAll(`"${SECRET}"`, '"[REDACTED:API_TOKEN]"')
+  const http = {
+    request: new Request("https://example.com", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    }),
+  }
+  await hooks.get("session.http.request")!(http)
+  expect(await http.request.text()).toBe(expected)
+})
+
+test("does not redact JSON object keys", async () => {
+  const { hooks, store } = await harness()
+  await store()
+  const body = `{"${SECRET}":"${SECRET}"}`
+  const http = {
+    request: new Request("https://example.com", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    }),
+  }
+  await hooks.get("session.http.request")!(http)
+  expect(await http.request.text()).toBe(`{"${SECRET}":"[REDACTED:API_TOKEN]"}`)
+})
+
+test("redacts escaped JSON string values", async () => {
+  const { hooks, store } = await harness()
+  const password = 'p@ss "word"/1234'
+  await store(password, "PASSWORD")
+  await store()
+  const body = `{"quoted":"p@ss \\"word\\"/1234","unicode":"p@ss \\u0022word\\u0022\\/1234","lone":"\\ud800 ${SECRET}"}`
+  const http = {
+    request: new Request("https://example.com", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    }),
+  }
+  await hooks.get("session.http.request")!(http)
+  const parsed = JSON.parse(await http.request.text())
+  expect(parsed.quoted).toBe("[REDACTED:PASSWORD]")
+  expect(parsed.unicode).toBe("[REDACTED:PASSWORD]")
+  expect(parsed.lone.charCodeAt(0)).toBe(0xd800)
+  expect(parsed.lone.endsWith("[REDACTED:API_TOKEN]")).toBe(true)
+})
+
+test("keeps wrapped media data URLs in provider requests", async () => {
+  const { hooks, store } = await harness()
+  await store()
+  await store("BBBB", "CHUNK")
+  const lf = "data:image/png;base64,AAAA\nBBBB"
+  const crlf = "data:application/pdf;base64,AAAA\r\nBBBB"
+  const body = JSON.stringify({
+    messages: [
+      { type: "file", mime: "image/png", uri: lf },
+      { type: "file", mime: "application/pdf", uri: crlf },
+    ],
+    text: `token=${SECRET}`,
+  })
+  const http = {
+    request: new Request("https://example.com", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    }),
+  }
+  await hooks.get("session.http.request")!(http)
+  const parsed = JSON.parse(await http.request.text())
+  expect(parsed.messages[0].uri).toBe(lf)
+  expect(parsed.messages[1].uri).toBe(crlf)
+  expect(parsed.text).toBe("token=[REDACTED:API_TOKEN]")
+})
+
 test("keeps JSON escapes valid when a secret is one character", async () => {
   const { hooks, store } = await harness()
   await store("n", "LETTER_N")

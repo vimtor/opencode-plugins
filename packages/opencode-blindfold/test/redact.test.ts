@@ -82,6 +82,23 @@ test("keeps a __proto__ key as data", () => {
   expect(JSON.stringify(output)).toBe('{"__proto__":{"value":"[REDACTED:TOKEN]"}}')
 })
 
+test("leaves wrapped base64 data URLs untouched", () => {
+  const redactor = new Redactor()
+  redactor.set("TOKEN", "BBBB")
+  const urls = [
+    "data:image/png;base64,AAAA\nBBBB",
+    "data:image/png;base64,AAAA\r\nBBBB",
+    "data:image/png;base64,AAAA\nBB==\nCCCC",
+    "data:image/png;base64,AAAA\\nBBBB",
+    "data:image/png;base64,AAAA\\r\\nBBBB",
+  ]
+  for (const url of urls) expect(redactor.text(url)).toBe(url)
+
+  expect(redactor.text("data:image/png;base64,AAAA\nBBBB\ntoken=BBBB")).toBe(
+    "data:image/png;base64,AAAA\nBBBB\ntoken=[REDACTED:TOKEN]",
+  )
+})
+
 test("redacts text after a data URL but not the URL itself", () => {
   const redactor = new Redactor()
   redactor.set("TOKEN", "s3cret-value")

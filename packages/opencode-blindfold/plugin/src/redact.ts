@@ -3,8 +3,7 @@ const MIN_ENCODED_LENGTH = 8
 
 // A base64 data URL carries binary data. Changing one character breaks the image,
 // audio/video file, or PDF, so redaction leaves the whole URL alone.
-// JSON bodies may escape "/" and some characters as \uXXXX, which is kept too.
-const DATA_URL = /data:[^,\r\n]{0,1024};base64,(?:[A-Za-z0-9+/=_-]|\\\/|\\u[0-9A-Fa-f]{4}|%[0-9A-Fa-f]{2})*/gi
+const DATA_URL_START = /data:/gi
 
 // Bodies above this size are not parsed again. The context hook already redacts
 // the messages a provider request is built from.
@@ -37,6 +36,130 @@ function encodings(value: string) {
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function isBase64Code(code: number) {
+  return (
+    (code >= 0x41 && code <= 0x5a) ||
+    (code >= 0x61 && code <= 0x7a) ||
+    (code >= 0x30 && code <= 0x39) ||
+    code === 0x2b ||
+    code === 0x2f ||
+    code === 0x3d ||
+    code === 0x5f ||
+    code === 0x2d
+  )
+}
+
+function isHexCode(code: number) {
+  return (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x46) || (code >= 0x61 && code <= 0x66)
+}
+
+// A line break inside a wrapped data URL, including its JSON-escaped form.
+function lineBreakLength(input: string, index: number) {
+  const code = input.charCodeAt(index)
+  if (code === 0x0a) return 1
+  if (code === 0x0d) return input.charCodeAt(index + 1) === 0x0a ? 2 : 1
+  if (code !== 0x5c) return 0
+  const next = input.charCodeAt(index + 1)
+  if (next === 0x6e) return 2
+  if (next !== 0x72) return 0
+  if (input.charCodeAt(index + 2) === 0x5c && input.charCodeAt(index + 3) === 0x6e) return 4
+  return 2
+}
+
+// End of a continuation line that looks like wrapped base64 rather than "key=value" text.
+function continuationEnd(input: string, start: number) {
+  let index = start
+  let padding = 0
+  while (index < input.length) {
+    if (lineBreakLength(input, index) > 0) break
+    const code = input.charCodeAt(index)
+    if (isBase64Code(code)) {
+      if (code === 0x3d) {
+        if (padding === 2) return -1
+        padding++
+      } else if (padding > 0) {
+        // "=" is only padding at the end of a base64 line. An internal "=" means
+        // this is ordinary text such as "token=value", not a payload continuation.
+        return -1
+      }
+      index++
+      continue
+    }
+    if (code === 0x25 && isHexCode(input.charCodeAt(index + 1)) && isHexCode(input.charCodeAt(index + 2))) {
+      index += 3
+      continue
+    }
+    if (code === 0x5c && input.charCodeAt(index + 1) === 0x2f) {
+      index += 2
+      continue
+    }
+    if (
+      code === 0x5c &&
+      input.charCodeAt(index + 1) === 0x75 &&
+      isHexCode(input.charCodeAt(index + 2)) &&
+      isHexCode(input.charCodeAt(index + 3)) &&
+      isHexCode(input.charCodeAt(index + 4)) &&
+      isHexCode(input.charCodeAt(index + 5))
+    ) {
+      index += 6
+      continue
+    }
+    break
+  }
+  return index === start ? -1 : index
+}
+
+// End of a base64 data URL, or -1 when the text at start is not one.
+function dataUrlEnd(input: string, start: number) {
+  const headerLimit = Math.min(input.length, start + 1024)
+  let comma = start + 5
+  while (comma < headerLimit) {
+    const code = input.charCodeAt(comma)
+    if (code === 0x2c) break
+    if (code === 0x0a || code === 0x0d || code === 0x22) return -1
+    comma++
+  }
+  if (comma >= input.length || input.charCodeAt(comma) !== 0x2c) return -1
+  if (!input.slice(start, comma).toLowerCase().endsWith(";base64")) return -1
+
+  let index = comma + 1
+  while (index < input.length) {
+    const code = input.charCodeAt(index)
+    if (isBase64Code(code)) {
+      index++
+      continue
+    }
+    if (code === 0x25 && isHexCode(input.charCodeAt(index + 1)) && isHexCode(input.charCodeAt(index + 2))) {
+      index += 3
+      continue
+    }
+    if (code === 0x5c && input.charCodeAt(index + 1) === 0x2f) {
+      index += 2
+      continue
+    }
+    if (
+      code === 0x5c &&
+      input.charCodeAt(index + 1) === 0x75 &&
+      isHexCode(input.charCodeAt(index + 2)) &&
+      isHexCode(input.charCodeAt(index + 3)) &&
+      isHexCode(input.charCodeAt(index + 4)) &&
+      isHexCode(input.charCodeAt(index + 5))
+    ) {
+      index += 6
+      continue
+    }
+    const lineBreak = lineBreakLength(input, index)
+    if (lineBreak > 0) {
+      const next = continuationEnd(input, index + lineBreak)
+      if (next < 0) return index
+      index = next
+      continue
+    }
+    return index
+  }
+  return index
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -108,12 +231,18 @@ export class Redactor {
     if (!this.#matcher) return input
     let output = ""
     let start = 0
-    DATA_URL.lastIndex = 0
+    DATA_URL_START.lastIndex = 0
     let match: RegExpExecArray | null
-    while ((match = DATA_URL.exec(input))) {
+    while ((match = DATA_URL_START.exec(input))) {
+      const end = dataUrlEnd(input, match.index)
+      if (end < 0) {
+        DATA_URL_START.lastIndex = match.index + 1
+        continue
+      }
       output += this.#redactSegment(input.slice(start, match.index))
-      output += match[0]
-      start = match.index + match[0].length
+      output += input.slice(match.index, end)
+      start = end
+      DATA_URL_START.lastIndex = end
     }
     return start === 0 ? this.#redactSegment(input) : output + this.#redactSegment(input.slice(start))
   }
@@ -183,6 +312,46 @@ function isJsonType(type: string) {
   return type === "application/json" || type === "text/json" || type.endsWith("+json")
 }
 
+const JSON_STRING = /"(?:[^"\\]|\\.)*"/g
+
+function isObjectKey(input: string, end: number) {
+  let index = end
+  while (index < input.length) {
+    const code = input.charCodeAt(index)
+    if (code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d) {
+      index++
+      continue
+    }
+    return code === 0x3a
+  }
+  return false
+}
+
+// Replaces only the string literals that changed. Numbers, whitespace, key order,
+// and the escaping of every other literal stay byte-for-byte intact.
+function redactJson(redactor: Redactor, body: string) {
+  let output = ""
+  let start = 0
+  let changed = false
+  JSON_STRING.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = JSON_STRING.exec(body))) {
+    if (isObjectKey(body, match.index + match[0].length)) continue
+    let value: string
+    try {
+      value = JSON.parse(match[0])
+    } catch {
+      continue
+    }
+    const redacted = redactor.text(value)
+    if (redacted === value) continue
+    output += body.slice(start, match.index) + JSON.stringify(redacted)
+    start = match.index + match[0].length
+    changed = true
+  }
+  return changed ? output + body.slice(start) : undefined
+}
+
 function hasBinaryControl(body: string) {
   for (let index = 0; index < body.length; index++) {
     const code = body.charCodeAt(index)
@@ -193,8 +362,8 @@ function hasBinaryControl(body: string) {
 
 /**
  * Redacts a provider request body without breaking its encoding.
- * JSON is parsed and walked, so replacements are escaped by the serializer.
- * Compressed and binary bodies are left untouched.
+ * JSON is validated, then only changed string literals are re-serialized, so the
+ * rest of the body keeps its exact bytes. Compressed and binary bodies are left untouched.
  */
 export async function redactRequest(redactor: Redactor, request: Request): Promise<Request | undefined> {
   if (redactor.size === 0 || request.body === null) return
@@ -223,10 +392,9 @@ export async function redactRequest(redactor: Redactor, request: Request): Promi
   }
 
   let next: string | undefined
-  let parsed: unknown
   let validJson = false
   try {
-    parsed = JSON.parse(body)
+    JSON.parse(body)
     validJson = true
   } catch {
     // Fall through. A declared JSON body that does not parse is left alone,
@@ -234,9 +402,7 @@ export async function redactRequest(redactor: Redactor, request: Request): Promi
   }
 
   if (validJson) {
-    const redacted = redactor.value(parsed)
-    if (redacted === parsed) return
-    next = JSON.stringify(redacted)
+    next = redactJson(redactor, body)
   } else if (!json && type !== "" && !hasBinaryControl(body)) {
     next = redactor.text(body)
   } else {
