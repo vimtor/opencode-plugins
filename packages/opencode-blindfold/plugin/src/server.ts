@@ -2,7 +2,7 @@ import { execFile, type ExecFileException } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { Plugin } from "@opencode/plugin"
 import { Error as ToolError, type Result } from "@opencode/plugin/promise/tool"
-import { Redactor } from "./redact.js"
+import { Redactor, redactRequest } from "./redact.js"
 import { Blindfold } from "./rpc.js"
 
 const NAMESPACE = "blindfold"
@@ -16,11 +16,12 @@ const ONEPASSWORD_PREFIX = "op://"
 const ONEPASSWORD_TIMEOUT = 2 * 60_000
 const ONEPASSWORD_ACCOUNT = "my.1password.com"
 
-type Answer = { status: "submitted"; value: string } | { status: "cancelled" | "timeout" | "unavailable" }
-type Pending = { finish: (answer: Answer) => void; acknowledge: () => void }
+type Answer = { status: "submitted"; value: string } | { status: "cancelled" | "timeout" | "unavailable" | "aborted" }
+type Pending = { finish: (answer: Answer) => void; acknowledge: () => boolean }
 
 function failure(name: string, status: Exclude<Answer["status"], "submitted">) {
   if (status === "cancelled") return `The user declined to provide ${name}.`
+  if (status === "aborted") return `The request for ${name} was cancelled.`
   if (status === "timeout") return `Timed out waiting for the user to provide ${name}.`
   return [
     `No OpenCode TUI with opencode-blindfold responded, so the user could not be asked for ${name}.`,
@@ -88,22 +89,27 @@ function mentioned(names: string[], command: string) {
   return names.filter((name) => new RegExp(`(?<![A-Za-z0-9_])${name}(?![A-Za-z0-9_])`).test(command))
 }
 
-function opRead(reference: string, account: string | undefined) {
+function opRead(reference: string, account: string | undefined, signal: AbortSignal | undefined) {
   const args = ["read", "--no-newline", ...(account ? ["--account", account] : []), reference]
   return new Promise<{ error: ExecFileException | null; stdout: string; stderr: string }>((resolve) => {
-    execFile("op", args, { timeout: ONEPASSWORD_TIMEOUT }, (error, stdout, stderr) => resolve({ error, stdout, stderr }))
+    execFile(
+      "op",
+      args,
+      { timeout: ONEPASSWORD_TIMEOUT, windowsHide: true, ...(signal ? { signal } : {}) },
+      (error, stdout, stderr) => resolve({ error, stdout, stderr }),
+    )
   })
 }
 
-async function readOnePassword(name: string, reference: string, account: string | undefined) {
-  let { error, stdout, stderr } = await opRead(reference, account)
+async function readOnePassword(name: string, reference: string, account: string | undefined, signal: AbortSignal | undefined) {
+  let { error, stdout, stderr } = await opRead(reference, account, signal)
   // With one account signed in, op picks it on its own; with several, fall back to the personal account.
-  if (error && account === undefined && stderr.includes("multiple accounts found")) {
-    ;({ error, stdout, stderr } = await opRead(reference, ONEPASSWORD_ACCOUNT))
+  if (error && account === undefined && !signal?.aborted && stderr.includes("multiple accounts found")) {
+    ;({ error, stdout, stderr } = await opRead(reference, ONEPASSWORD_ACCOUNT, signal))
   }
   const fail = (detail: string) => new Error(`Couldn't read ${name} from 1Password (${reference}): ${detail}`)
   if (error && (error as NodeJS.ErrnoException).code === "ENOENT") throw fail("the 1Password CLI (op) isn't installed.")
-  if (error && error.killed) throw fail("timed out waiting for 1Password. Check that it's unlocked.")
+  if (error && (error.killed || error.code === "ETIMEDOUT")) throw fail("timed out waiting for 1Password. Check that it's unlocked.")
   if (error) throw fail(stderr.trim() || error.message)
   if (stdout === "") throw fail("the field is empty.")
   return stdout
@@ -149,6 +155,7 @@ export default Plugin.define({
     const settings = getSettings(ctx.options)
     const redactor = new Redactor()
     const pending = new Map<string, Pending>()
+    let disposed = false
 
     // Plain values are known upfront, so they're redacted and reach shell commands before any get.
     for (const [name, source] of settings.secrets) {
@@ -166,8 +173,7 @@ export default Plugin.define({
       ack: async (input) => {
         const request = pending.get((input as { requestID: string }).requestID)
         if (!request) return { accepted: false }
-        request.acknowledge()
-        return { accepted: true }
+        return { accepted: request.acknowledge() }
       },
       cancel: async (input) => {
         const request = pending.get((input as { requestID: string }).requestID)
@@ -177,7 +183,7 @@ export default Plugin.define({
       },
     })
 
-    function ask(request: { sessionID: string; name: string; reason: string }) {
+    function ask(request: { sessionID: string; name: string; reason: string }, signal: AbortSignal | undefined) {
       const requestID = randomUUID()
       return new Promise<Answer>((resolve) => {
         let acknowledged = false
@@ -185,18 +191,28 @@ export default Plugin.define({
           if (!pending.delete(requestID)) return
           clearTimeout(timer)
           clearTimeout(ackTimer)
+          signal?.removeEventListener("abort", abort)
           resolve(answer)
           void rpc.events.emit("resolved", { requestID }).catch(() => undefined)
         }
+        const abort = () => finish({ status: "aborted" })
         const timer = setTimeout(() => finish({ status: acknowledged ? "timeout" : "unavailable" }), PROMPT_TIMEOUT)
         const ackTimer = setTimeout(() => finish({ status: "unavailable" }), ACK_TIMEOUT)
         pending.set(requestID, {
           finish,
           acknowledge: () => {
+            // Only one dialog owns a request; other windows stay closed.
+            if (acknowledged) return false
             acknowledged = true
             clearTimeout(ackTimer)
+            return true
           },
         })
+        if (signal?.aborted) {
+          abort()
+          return
+        }
+        signal?.addEventListener("abort", abort, { once: true })
         rpc.events.emit("requested", { requestID, ...request }).catch(() => finish({ status: "unavailable" }))
       })
     }
@@ -209,31 +225,47 @@ export default Plugin.define({
       return next
     }
 
-    async function obtain(request: { sessionID: string; name: string; reason: string; replace?: boolean }) {
-      const { name, reason, replace } = request
+    async function obtain(request: { sessionID: string; name: string; reason: string; replace?: boolean; signal?: AbortSignal }) {
+      const { name, reason, replace, signal } = request
+      if (disposed) throw new Error("opencode-blindfold is shutting down.")
       if (!new RegExp(NAME_PATTERN).test(name)) throw new Error(`Secret name must match ${NAME_PATTERN}`)
+      if (signal?.aborted) throw new Error(failure(name, "aborted"))
       const stored = redactor.get(name)
       if (stored !== undefined && !replace) return stored
       return serial(async () => {
+        // Queued calls must not open a new dialog after the plugin is unloaded.
+        if (disposed) throw new Error("opencode-blindfold is shutting down.")
+        if (signal?.aborted) throw new Error(failure(name, "aborted"))
         // Another call may have stored it while this one waited.
         const stored = redactor.get(name)
         if (stored !== undefined && !replace) return stored
-        const value = await resolve({ sessionID: request.sessionID, name, reason })
+        let value: string
+        try {
+          value = await resolve({ sessionID: request.sessionID, name, reason, signal })
+        } catch (error) {
+          if (signal?.aborted) throw new Error(failure(name, "aborted"))
+          throw error
+        }
+        // The plugin may have unloaded or the tool call may have been cancelled while 1Password was reading.
+        if (disposed) throw new Error("opencode-blindfold is shutting down.")
+        if (signal?.aborted) throw new Error(failure(name, "aborted"))
         redactor.set(name, value)
         return value
       })
     }
 
-    async function resolve(request: { sessionID: string; name: string; reason: string }) {
+    async function resolve(request: { sessionID: string; name: string; reason: string; signal?: AbortSignal }) {
       const { name } = request
       const source = settings.secrets.get(name)
       if (source === undefined) {
-        const answer = await ask(request)
+        const answer = await ask(request, request.signal)
         if (answer.status !== "submitted") throw new Error(failure(name, answer.status))
         return answer.value
       }
       if (source === "") throw new Error(`${name} is empty in the opencode-blindfold secrets option, for example because its {env:...} variable isn't set.`)
-      if (source.startsWith(ONEPASSWORD_PREFIX)) return readOnePassword(name, source, settings.onepassword.account)
+      if (source.startsWith(ONEPASSWORD_PREFIX)) {
+        return readOnePassword(name, source, settings.onepassword.account, request.signal)
+      }
       return source
     }
 
@@ -263,7 +295,13 @@ export default Plugin.define({
         async execute(input, context) {
           const { name, reason, replace } = input as { name: string; reason?: string; replace?: boolean }
           await context.progress({ title: `Secret ${name}` })
-          const value = await obtain({ sessionID: context.sessionID, name, reason: reason ?? `The agent needs ${name}.`, replace })
+          const value = await obtain({
+            sessionID: context.sessionID,
+            name,
+            reason: reason ?? `The agent needs ${name}.`,
+            replace,
+            signal: context.signal,
+          })
           if (settings.codemode.enabled) return { content: value }
           return {
             content: `Secret ${name} is stored. Blindfold secrets available: ${redactor.names().join(", ")}.`,
@@ -281,9 +319,14 @@ export default Plugin.define({
       }
       const message = redactor.text(event.error.message)
       const metadata = redactor.value(event.error.metadata)
-      if (message === event.error.message && metadata === event.error.metadata) return
-      const cause = redactor.text(String(event.error.error)) === String(event.error.error) ? event.error.error : undefined
-      event.error = new ToolError({ message, metadata, error: cause })
+      const original = String(event.error.error)
+      const redactedCause = redactor.text(original)
+      if (message === event.error.message && metadata === event.error.metadata && redactedCause === original) return
+      event.error = new ToolError({
+        message,
+        metadata,
+        error: redactedCause === original ? event.error.error : undefined,
+      })
     })
 
     const system = instructions(settings)
@@ -297,13 +340,8 @@ export default Plugin.define({
 
     // Last line of defense for requests that bypass the context hook, such as compaction and titles.
     await ctx.session.hook("http.request", async (event) => {
-      if (redactor.size === 0 || !event.request.body) return
-      const body = await event.request.clone().text()
-      const redacted = redactor.text(body)
-      if (redacted === body) return
-      const headers = new Headers(event.request.headers)
-      headers.delete("content-length")
-      event.request = new Request(event.request, { body: redacted, headers })
+      const request = await redactRequest(redactor, event.request)
+      if (request) event.request = request
     })
 
     if (settings.shell.enabled) {
@@ -323,6 +361,7 @@ export default Plugin.define({
     }
 
     return () => {
+      disposed = true
       for (const request of pending.values()) request.finish({ status: "unavailable" })
     }
   },

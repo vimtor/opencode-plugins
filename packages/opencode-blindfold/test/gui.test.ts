@@ -51,7 +51,7 @@ function client(accepted = true) {
   return { listeners, calls, rpc: () => rpc }
 }
 
-function mount(answers: (string | undefined)[], accepted?: boolean) {
+function mount(answers: (string | undefined)[], accepted?: boolean, failPrompt = false) {
   const [server, setServer] = createSignal(client(accepted))
   const prompts: PromptOptions[] = []
   const toasts: ToastOptions[] = []
@@ -65,6 +65,7 @@ function mount(answers: (string | undefined)[], accepted?: boolean) {
       // Like the app's dialogs, a prompt closes with the owner that asked.
       prompt: (options: PromptOptions) => {
         prompts.push(options)
+        if (failPrompt) return Promise.reject(new Error("dialog failed"))
         if (answers.length) return Promise.resolve(answers.shift())
         return new Promise((resolve) =>
           onCleanup(() => {
@@ -130,6 +131,13 @@ test("closes the prompt when another client answers", async () => {
   await answering
   expect(closed()).toBe(1)
   expect(server().calls.map(([name]) => name)).toEqual(["ack"])
+})
+
+test("cancels the request when its dialog fails", async () => {
+  const { server, toasts, request } = mount([], true, true)
+  await request()
+  expect(server().calls.map(([name]) => name)).toEqual(["ack", "cancel"])
+  expect(toasts).toEqual([{ variant: "error", title: "Could not send secret API_TOKEN." }])
 })
 
 test("listens again when the server restarts, and stops with the plugin", () => {

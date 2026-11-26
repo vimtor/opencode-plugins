@@ -15,7 +15,7 @@ test("loads through a local directory as well as npm exports", async () => {
 
 type Listener = (event: { data: Record<string, unknown>; location: unknown }) => unknown
 
-async function harness(answers: Array<string | undefined>) {
+async function harness(answers: Array<string | undefined>, failPrompt = false) {
   const listeners = new Map<string, Listener>()
   const calls: Array<[string, unknown, unknown]> = []
   const prompts: DialogPromptOptions[] = []
@@ -35,6 +35,7 @@ async function harness(answers: Array<string | undefined>) {
       dialog: {
         prompt: (options: DialogPromptOptions) => {
           prompts.push(options)
+          if (failPrompt) return Promise.reject(new Error("dialog failed"))
           if (answers.length) return Promise.resolve(answers.shift())
           return new Promise((resolve) => { pending = resolve })
         },
@@ -80,4 +81,11 @@ test("cancels when dismissed and closes dialogs answered elsewhere", async () =>
   expect(elsewhere.calls).toEqual([])
   await elsewhere.resolve()
   expect(elsewhere.cleared()).toBe(1)
+})
+
+test("cancels the request when its dialog fails", async () => {
+  const failing = await harness([], true)
+  await failing.request()
+  expect(failing.calls).toEqual([["cancel", { requestID: "req" }, { location: { directory: "/project" } }]])
+  expect(failing.toasts).toEqual([{ variant: "error", message: "Could not send secret API_TOKEN." }])
 })

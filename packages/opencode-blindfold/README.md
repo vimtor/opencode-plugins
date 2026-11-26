@@ -109,7 +109,7 @@ Options are read when the OpenCode service starts. After changing them, run `ope
 
 ## Limitations
 
-Redaction guards against accidental exposure, not a hostile agent. Once you approve a shell command, that program has the real value and can send it anywhere. An agent can transform a value in ways redaction cannot recognize, such as reversing it or printing part of it, or send it to a server it controls. Live shell output shown in the TUI while a command runs is not redacted; the final result is.
+Redaction guards against accidental exposure, not a hostile agent. Once you approve a shell command, that program has the real value and can send it anywhere. An agent can transform a value in ways redaction cannot recognize, such as reversing it or printing part of it, or send it to a server it controls. Live shell output shown in the TUI while a command runs is not redacted; the final result is. Base64 data URLs and inline media are never rewritten, so a value embedded inside an image, audio, video, or PDF is not redacted.
 
 ## Local Development
 
