@@ -1,18 +1,10 @@
-import { expect, mock, test } from "bun:test"
+import { expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { Host } from "@opencode/plugin/host"
 import type { Plugin, PromptOptions, SetupContext, ToastOptions } from "@opencode/plugin/gui"
-
-// The desktop app provides Solid's browser build. Bun resolves the server build
-// by default, and its effects never run, so a restarted client would look stale.
-// Mocking the browser entry to itself would recurse under --conditions=browser.
-if (!import.meta.resolve("solid-js").endsWith("/dist/solid.js")) {
-  mock.module("solid-js", () => import("solid-js/dist/solid.js"))
-  mock.module("solid-js/store", () => import("solid-js/store/dist/store.js"))
-}
-const { createRoot, createSignal, onCleanup } = await import("solid-js")
+import { createRoot, createSignal, onCleanup } from "solid-js"
 
 // Evaluates the bundle as the desktop app does: CommonJS text with the app's own modules.
 async function load() {
